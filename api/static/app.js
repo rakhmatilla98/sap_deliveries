@@ -76,7 +76,11 @@ async function loadDeliveries(tab) {
         const card = document.createElement("div");
         card.className = "card mb-2";
 
-        const date = new Date(d.date).toLocaleDateString();
+        const date = new Date(d.date).toLocaleDateString('ru-RU', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+        });
 
         // 🔧 CHANGE 3: Button has id for disabling
         const approveBlock = d.approved

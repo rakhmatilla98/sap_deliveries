@@ -112,7 +112,7 @@ def sync_deliveries():
             # 🔔 notify users
             for user in users:
                 send_telegram_message(
-                    user.telegram_id,
+                    user,
                     (
                         "📦 <b>New delivery received</b>\n\n"
                         f"№ {doc['DocNum']}\n"

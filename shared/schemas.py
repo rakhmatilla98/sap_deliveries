@@ -17,3 +17,15 @@ class DeliveryOut(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class DeliveryItemOut(BaseModel):
+    line_num: int
+    item_code: str
+    item_name: str
+    quantity: float
+    price: float
+    line_total: float
+
+    class Config:
+        from_attributes = True

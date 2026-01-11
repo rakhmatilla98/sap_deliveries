@@ -1,8 +1,10 @@
 # shared/models.py
 import datetime
 from sqlalchemy import (
-    Column, Integer, String, Boolean, DateTime, Numeric
+    Column, Integer, String, Boolean, DateTime, Numeric, Float, ForeignKey
 )
+from sqlalchemy.orm import relationship
+
 from shared.db import Base
 
 
@@ -26,6 +28,29 @@ class Delivery(Base):
     sap_synced = Column(Boolean, default=False)
 
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    # ✅ NEW
+    items = relationship(
+        "DeliveryItem",
+        back_populates="delivery",
+        cascade="all, delete-orphan"
+    )
+
+
+class DeliveryItem(Base):
+    __tablename__ = "delivery_items"
+
+    id = Column(Integer, primary_key=True)
+    delivery_id = Column(Integer, ForeignKey("deliveries.id"), index=True)
+
+    line_num = Column(Integer)
+    item_code = Column(String)
+    item_name = Column(String)
+    quantity = Column(Float)
+    price = Column(Float)
+    line_total = Column(Float)
+
+    delivery = relationship("Delivery", back_populates="items")
 
 
 class TelegramUser(Base):

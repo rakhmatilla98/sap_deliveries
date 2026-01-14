@@ -13,6 +13,7 @@ class Delivery(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     card_code = Column(String, index=True)
+    card_name = Column(String, nullable=True)
     doc_entry = Column(Integer, unique=True, index=True, nullable=False)
     document_number = Column(String, nullable=False)
 
@@ -21,6 +22,7 @@ class Delivery(Base):
 
     remarks = Column(String, nullable=True)
     document_total_amount = Column(Numeric(15, 2), nullable=False)
+    currency = Column(String, nullable=True)
 
     approved = Column(Boolean, default=False)
     approved_at = Column(DateTime, nullable=True)

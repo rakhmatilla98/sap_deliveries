@@ -73,7 +73,7 @@ def render_delivery_image(delivery: dict) -> str:
         draw.text((620, y + 8), str(item.get("quantity", 0)), font=font_normal, fill="black")
 
         line_total = item.get("line_total", item.get("line_total ", 0))
-        total_text = f"{float(line_total):,.0f}"
+        total_text = f"{float(line_total):,.2f}"
 
         bbox = draw.textbbox((0, 0), total_text, font=font_normal)
         draw.text((880 - (bbox[2] - bbox[0]), y + 8), total_text, font=font_normal, fill="black")

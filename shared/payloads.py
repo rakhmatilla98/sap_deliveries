@@ -1,5 +1,5 @@
-from decimal import Decimal
 from typing import Optional
+
 from shared.models import Delivery
 
 
@@ -18,12 +18,12 @@ def build_delivery_payload(
         "doc_entry": delivery.doc_entry,
         "document_number": delivery.document_number,
         "card_code": delivery.card_code,
-        "card_name": getattr(delivery, "card_name", ""),
+        "card_name": delivery.card_name,
         "date": str(delivery.date),
         "sales_manager": delivery.sales_manager,
         "remarks": delivery.remarks or "",
         "total_amount": float(delivery.document_total_amount),
-        "currency": getattr(delivery, "currency", "UZS"),
+        "currency": delivery.currency,
         "approved": delivery.approved,
         "items": items or []
     }

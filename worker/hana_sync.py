@@ -4,6 +4,7 @@ import asyncio
 import os
 
 from hdbcli import dbapi
+from sqlalchemy import func
 
 from shared.db import SessionLocal
 from shared.models import Delivery, TelegramUser, DeliveryItem
@@ -29,11 +30,15 @@ temp_item = [
     }
 ]
 
-def fetch_deliveries_from_sap():
+
+def fetch_deliveries_from_sap(last_doc_entry: int) -> list[dict]:
     """
-    Connects to SAP B1 HANA and fetches new deliveries.
-    Returns a list of dictionaries with keys matching our Delivery model.
+    Fetch delivery headers + items from SAP B1 HANA.
+
+    :param last_doc_entry: last synced DocEntry from local DB
+    :return: list of dicts (one row per delivery line)
     """
+
     conn = dbapi.connect(
         address=HANA_HOST,
         port=HANA_PORT,
@@ -43,7 +48,6 @@ def fetch_deliveries_from_sap():
 
     cursor = conn.cursor()
 
-    # Example query: deliveries from today
     query = f"""
     SELECT
         H."DocEntry",
@@ -54,51 +58,38 @@ def fetch_deliveries_from_sap():
         T1."SlpName",
         H."Comments",
         H."DocTotal",
+        H."DocCur",
+        H."U_Approved",
+
         L."LineNum",
         L."ItemCode",
-        L."Dscription"  AS "ItemName",
+        L."Dscription"     AS "ItemName",
         L."Quantity",
         L."Price",
         L."LineTotal"
-    FROM "{SL_COMPANYDB}"."ODLN" H INNER JOIN "{SL_COMPANYDB}"."OSLP" T1
-    JOIN "{SL_COMPANYDB}"."DLN1" L ON L."DocEntry" = H."DocEntry"
-    WHERE T0."DocDate" >= CURRENT_DATE AND T0."U_Approved" = 'N'
-    ORDER BY H."DocEntry", L."LineNum";
-    """
-    query1 = f"""
-    SELECT 
-        T0."DocNum",
-        T0."DocDate",
-        T1."SlpName",
-        T0."Comments",
-        T0."DocTotal",
-        T0."DocEntry",
-        T0."CardCode"
-    FROM "{SL_COMPANYDB}"."ODLN" T0 INNER JOIN "{SL_COMPANYDB}"."OSLP" T1
-    ON T0."SlpCode" = T1."SlpCode"
-    WHERE T0."DocDate" >= CURRENT_DATE AND T0."U_Approved" = 'N'
+    FROM "{SL_COMPANYDB}"."ODLN" H
+    INNER JOIN "{SL_COMPANYDB}"."OSLP" T1
+        ON H."SlpCode" = T1."SlpCode"
+    INNER JOIN "{SL_COMPANYDB}"."DLN1" L
+        ON L."DocEntry" = H."DocEntry"
+    WHERE
+        H."DocEntry" > ?
+    ORDER BY
+        H."DocEntry",
+        L."LineNum"
     """
 
-    cursor.execute(query)
-    rows = cursor.fetchall()
+    try:
+        cursor.execute(query, (last_doc_entry,))
 
-    # Map SAP SlpCode to Sales Manager name if needed
-    # For simplicity, we keep SlpCode as sales_manager
-    deliveries = []
-    for row in rows:
-        deliveries.append({
-            "CardCode": row[6],
-            "DocEntry": row[5],
-            "DocNum": row[0],
-            "DocDate": row[1],
-            "SlpName": row[2],
-            "Comments": row[3],
-            "DocTotal": float(row[4])
-        })
+        columns = [col[0] for col in cursor.description]
+        rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
 
-    cursor.close()
-    conn.close()
-    return deliveries
+        return rows
+
+    finally:
+        cursor.close()
+        conn.close()
 
 
 async def hana_sync_loop(period: int):
@@ -114,7 +105,8 @@ async def hana_sync_loop(period: int):
 def sync_deliveries():
     db = SessionLocal()
     try:
-        sap_docs = fetch_deliveries_from_sap()
+        last_doc_entry = get_last_doc_entry(db)
+        sap_docs = fetch_deliveries_from_sap(last_doc_entry)
         grouped = group_deliveries(sap_docs)
 
         for doc_entry, data in grouped.items():
@@ -128,19 +120,23 @@ def sync_deliveries():
             delivery = Delivery(
                 doc_entry=doc_entry,
                 card_code=data["card_code"],
+                card_name=data["card_name"],
                 document_number=data["document_number"],
                 date=data["date"],
                 sales_manager=data["sales_manager"],
                 remarks=data["remarks"],
                 document_total_amount=data["total_amount"],
+                currency=data["currency"],
                 approved=False
             )
 
             db.add(delivery)
             db.flush()  # 🔔 ensure ID is generated
 
+            items_payload: list[dict] = []
+
             for item in data["items"]:
-                db.add(DeliveryItem(
+                delivery_item = DeliveryItem(
                     delivery_id=delivery.id,
                     line_num=item["line_num"],
                     item_code=item["item_code"],
@@ -148,7 +144,20 @@ def sync_deliveries():
                     quantity=item["quantity"],
                     price=item["price"],
                     line_total=item["line_total"]
-                ))
+                )
+
+                db.add(delivery_item)
+
+                # build payload dict
+                items_payload.append({
+                    "line_num": item["line_num"],
+                    "item_code": item["item_code"],
+                    "item_name": item["item_name"],
+                    "quantity": item["quantity"],
+                    "price": item["price"],
+                    "line_total": item["line_total"],
+                    "uom": item.get("uom", "")  # optional
+                })
 
             # 🔔 find telegram users for this CardCode
             users = db.query(TelegramUser).filter(
@@ -158,7 +167,7 @@ def sync_deliveries():
 
             # 🔔 notify users
             for user in users:
-                delivery_data = build_delivery_payload(delivery, temp_item)
+                delivery_data = build_delivery_payload(delivery, items_payload)
                 #print(delivery_data)
                 image = render_delivery_image(delivery_data)
 
@@ -197,6 +206,7 @@ def group_deliveries(rows: list[dict]) -> dict:
                 "sales_manager": r["SlpName"],
                 "remarks": r["Comments"],
                 "total_amount": r["DocTotal"],
+                "currency": r["DocCur"],
                 "items": []
             }
 
@@ -210,3 +220,10 @@ def group_deliveries(rows: list[dict]) -> dict:
         })
 
     return deliveries
+
+
+def get_last_doc_entry(db):
+    return (
+        db.query(func.coalesce(func.max(Delivery.doc_entry), 50770))
+          .scalar()
+    )

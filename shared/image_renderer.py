@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from PIL import Image, ImageDraw, ImageFont
 import os
 from shared.config import DATA_DIR
@@ -5,6 +7,8 @@ from shared.config import DATA_DIR
 FONTS_DIR = os.path.join(DATA_DIR, "fonts")
 FONT_REGULAR = os.path.join(FONTS_DIR, "arial.ttf")
 FONT_BOLD = os.path.join(FONTS_DIR, "G_ari_bd.ttf")
+
+CELL_PADDING = 8
 
 
 def get_font(size: int, bold: bool = False):
@@ -19,32 +23,38 @@ def get_font(size: int, bold: bool = False):
 def wrap_text(draw, text, font, max_width):
     words = str(text).split()
     lines = []
-    current_line = ""
+    current = ""
 
     for word in words:
-        test_line = current_line + (" " if current_line else "") + word
-        if draw.textbbox((0, 0), test_line, font=font)[2] <= max_width:
-            current_line = test_line
+        test = current + (" " if current else "") + word
+        if draw.textbbox((0, 0), test, font=font)[2] <= max_width:
+            current = test
         else:
-            lines.append(current_line)
-            current_line = word
+            lines.append(current)
+            current = word
 
-    if current_line:
-        lines.append(current_line)
+    if current:
+        lines.append(current)
 
     return lines
 
 
 def calculate_table_height(draw, items, font, row_height, desc_x, desc_right):
     total = 0
-    line_height = font.getbbox("Ag")[3] + 4
-    desc_width = desc_right - desc_x
+    line_h = font.getbbox("Ag")[3] + 4
+    width = desc_right - desc_x - CELL_PADDING * 2
 
     for item in items:
-        lines = wrap_text(draw, item.get("item_name", "-"), font, desc_width)
-        total += max(row_height, len(lines) * line_height)
+        lines = wrap_text(draw, item.get("item_name", "-"), font, width)
+        total += max(row_height, len(lines) * line_h)
 
     return total
+
+
+def center_text(draw, text, font, left, right, y):
+    w = draw.textbbox((0, 0), text, font=font)[2]
+    x = left + ((right - left) - w) // 2
+    draw.text((x, y), text, font=font, fill="black")
 
 
 def render_delivery_image(delivery: dict) -> str:
@@ -64,7 +74,7 @@ def render_delivery_image(delivery: dict) -> str:
 
     items = delivery.get("items", [])
 
-    # ─── PASS 1: CALCULATE HEIGHT ─────────
+    # ─── PASS 1: HEIGHT CALC ──────────────
     tmp_img = Image.new("RGB", (width, 100), "white")
     tmp_draw = ImageDraw.Draw(tmp_img)
 
@@ -82,7 +92,9 @@ def render_delivery_image(delivery: dict) -> str:
     y += 70
 
     draw.text((40, y), f"No: {delivery.get('document_number', '-')}", font=font_header, fill="black")
-    draw.text((620, y), f"Date: {delivery.get('date', '-')[:10]}", font=font_header, fill="black")
+
+    doc_date = datetime.strptime(delivery.get('date', '-'), "%Y-%m-%d %H:%M:%S")
+    draw.text((620, y), f"Date: {doc_date.strftime('%d.%m.%Y')}", font=font_header, fill="black")
     y += 50
 
     draw.text((40, y), f"Customer: {delivery.get('card_name') or '-'}", font=font_normal, fill="black")
@@ -92,7 +104,7 @@ def render_delivery_image(delivery: dict) -> str:
     draw.text((40, y), f"Sales Manager: {delivery.get('sales_manager', '-')}", font=font_normal, fill="black")
     y += 60
 
-    # ─── TABLE HEADER ─────────────────────
+    # ─── TABLE DEFINITIONS ────────────────
     TABLE_LEFT = 40
     TABLE_RIGHT = width - 40
 
@@ -106,54 +118,59 @@ def render_delivery_image(delivery: dict) -> str:
     }
 
     HEADERS = [
-        ("#", COLS["idx"]),
-        ("Item Code", COLS["code"]),
-        ("Description", COLS["desc"]),
-        ("Qty", COLS["qty"]),
-        ("Price", COLS["price"]),
-        ("Line Total", COLS["total"]),
+        ("#", "idx", "code"),
+        ("Item Code", "code", "desc"),
+        ("Description", "desc", "qty"),
+        ("Qty", "qty", "price"),
+        ("Price", "price", "total"),
+        ("Line Total", "total", None),
     ]
 
     table_top = y
 
-    for text, x in HEADERS:
-        draw.text((x, y), text, font=font_bold, fill="black")
+    # ─── TABLE HEADER ─────────────────────
+    for text, left_key, right_key in HEADERS:
+        left = COLS[left_key]
+        right = COLS[right_key] if right_key else TABLE_RIGHT
+        center_text(draw, text, font_bold, left, right, y)
 
     y += row_height
     draw.line((TABLE_LEFT, y, TABLE_RIGHT, y), fill="black", width=2)
 
     # ─── TABLE ROWS ───────────────────────
-    QTY_RIGHT = COLS["price"]
-    PRICE_RIGHT = COLS["total"]
-    TOTAL_RIGHT = TABLE_RIGHT
-
     for i, item in enumerate(items, 1):
         start_y = y
 
+        desc_width = COLS["qty"] - COLS["desc"] - CELL_PADDING * 2
         desc_lines = wrap_text(
-            draw, item.get("item_name", "-"), font_normal, COLS["qty"] - COLS["desc"]
+            draw, item.get("item_name", "-"), font_normal, desc_width
         )
 
-        line_height = font_normal.getbbox("Ag")[3] + 4
-        row_h = max(row_height, len(desc_lines) * line_height)
+        line_h = font_normal.getbbox("Ag")[3] + 4
+        row_h = max(row_height, len(desc_lines) * line_h)
 
-        draw.text((COLS["idx"], start_y + 8), str(i), font=font_normal, fill="black")
-        draw.text((COLS["code"], start_y + 8), str(item.get("item_code", "-")), font=font_normal, fill="black")
+        draw.text((COLS["idx"] + CELL_PADDING, start_y + 8), str(i), font=font_normal, fill="black")
+        draw.text((COLS["code"] + CELL_PADDING, start_y + 8), str(item.get("item_code", "-")), font=font_normal, fill="black")
 
         for j, line in enumerate(desc_lines):
-            draw.text((COLS["desc"], start_y + 8 + j * line_height), line, font=font_normal, fill="black")
+            draw.text(
+                (COLS["desc"] + CELL_PADDING, start_y + 8 + j * line_h),
+                line,
+                font=font_normal,
+                fill="black"
+            )
 
         qty = str(item.get("quantity", 0))
         w = draw.textbbox((0, 0), qty, font=font_normal)[2]
-        draw.text((QTY_RIGHT - w, start_y + 8), qty, font=font_normal, fill="black")
+        draw.text((COLS["price"] - CELL_PADDING - w, start_y + 8), qty, font=font_normal, fill="black")
 
         price = f"{float(item.get('price', 0)):,.2f}"
         w = draw.textbbox((0, 0), price, font=font_normal)[2]
-        draw.text((PRICE_RIGHT - w, start_y + 8), price, font=font_normal, fill="black")
+        draw.text((COLS["total"] - CELL_PADDING - w, start_y + 8), price, font=font_normal, fill="black")
 
         total = f"{float(item.get('line_total', 0)):,.2f}"
         w = draw.textbbox((0, 0), total, font=font_normal)[2]
-        draw.text((TOTAL_RIGHT - w, start_y + 8), total, font=font_normal, fill="black")
+        draw.text((TABLE_RIGHT - CELL_PADDING - w, start_y + 8), total, font=font_normal, fill="black")
 
         y += row_h
         draw.line((TABLE_LEFT, y, TABLE_RIGHT, y), fill="#cccccc", width=1)
@@ -175,6 +192,6 @@ def render_delivery_image(delivery: dict) -> str:
 
     doc_num = delivery.get("document_number", "unknown")
     path = os.path.join(images_dir, f"delivery_{doc_num}.png")
-
     img.save(path, quality=95)
+
     return path

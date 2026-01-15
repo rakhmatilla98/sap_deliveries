@@ -1,6 +1,7 @@
 # worker/hana_sync.py
 
 import asyncio
+from datetime import datetime
 import os
 
 from hdbcli import dbapi
@@ -174,7 +175,7 @@ def sync_deliveries():
                 caption = (
                     f"<b>📦 New delivery</b>\n"
                     f"No: <b>{delivery.document_number}</b>\n"
-                    f"Date: {delivery.date}\n"
+                    f"Date: {delivery.date.strftime('%d.%m.%Y')}\n"
                     f"Amount: <b>{delivery.document_total_amount:,}</b>"
                 )
 
@@ -224,6 +225,6 @@ def group_deliveries(rows: list[dict]) -> dict:
 
 def get_last_doc_entry(db):
     return (
-        db.query(func.coalesce(func.max(Delivery.doc_entry), 50770))
+        db.query(func.coalesce(func.max(Delivery.doc_entry), 50877))
           .scalar()
     )

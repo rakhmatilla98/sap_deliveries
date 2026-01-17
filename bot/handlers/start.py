@@ -25,7 +25,7 @@ async def start_handler(message: types.Message):
             db.commit()
 
             await message.answer(
-                "Welcome 👋\nPlease share your phone number to continue.",
+                "Добро пожаловать 👋\nПожалуйста, поделитесь своим номером телефона, чтобы продолжить.",
                 reply_markup=phone_keyboard
             )
             return
@@ -35,7 +35,7 @@ async def start_handler(message: types.Message):
         # ------------------------------
         if not user.phone_verified:
             await message.answer(
-                "Please share your phone number to continue.",
+                "Пожалуйста, поделитесь своим номером телефона, чтобы продолжить.",
                 reply_markup=phone_keyboard
             )
             return
@@ -45,8 +45,8 @@ async def start_handler(message: types.Message):
         # ------------------------------
         if not user.is_active:
             await message.answer(
-                "⏳ Your account is pending verification.\n"
-                "You will get access shortly after confirmation."
+                "⏳ Ваш аккаунт ожидает подтверждения.\n"
+                "Вы получите доступ вскоре после подтверждения."
             )
             return
 
@@ -54,7 +54,7 @@ async def start_handler(message: types.Message):
         # Fully active → show WebApp
         # ------------------------------
         await message.answer(
-            "✅ Access granted.\nOpen the delivery panel:",
+            "✅ Откройте панель отгрузок:",
             reply_markup=webapp_keyboard
         )
 

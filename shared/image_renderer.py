@@ -88,20 +88,20 @@ def render_delivery_image(delivery: dict) -> str:
 
     # ─── HEADER ───────────────────────────
     y = 30
-    draw.text((40, y), "DELIVERY NOTE", font=font_title, fill="black")
+    draw.text((40, y), "НАКЛАДНАЯ - ОТГРУЗКА", font=font_title, fill="black")
     y += 70
 
     draw.text((40, y), f"No: {delivery.get('document_number', '-')}", font=font_header, fill="black")
 
     doc_date = datetime.strptime(delivery.get('date', '-'), "%Y-%m-%d %H:%M:%S")
-    draw.text((620, y), f"Date: {doc_date.strftime('%d.%m.%Y')}", font=font_header, fill="black")
+    draw.text((620, y), f"Дата: {doc_date.strftime('%d.%m.%Y')}", font=font_header, fill="black")
     y += 50
 
-    draw.text((40, y), f"Customer: {delivery.get('card_name') or '-'}", font=font_normal, fill="black")
+    draw.text((40, y), f"Клиент: {delivery.get('card_name') or '-'}", font=font_normal, fill="black")
     y += 40
-    draw.text((40, y), f"CardCode: {delivery.get('card_code', '-')}", font=font_normal, fill="black")
+    draw.text((40, y), f"Код: {delivery.get('card_code', '-')}", font=font_normal, fill="black")
     y += 40
-    draw.text((40, y), f"Sales Manager: {delivery.get('sales_manager', '-')}", font=font_normal, fill="black")
+    draw.text((40, y), f"Менеджер: {delivery.get('sales_manager', '-')}", font=font_normal, fill="black")
     y += 60
 
     # ─── TABLE DEFINITIONS ────────────────
@@ -119,11 +119,11 @@ def render_delivery_image(delivery: dict) -> str:
 
     HEADERS = [
         ("#", "idx", "code"),
-        ("Item Code", "code", "desc"),
-        ("Description", "desc", "qty"),
-        ("Qty", "qty", "price"),
-        ("Price", "price", "total"),
-        ("Line Total", "total", None),
+        ("Артикул", "code", "desc"),
+        ("Название товара", "desc", "qty"),
+        ("Кол-во", "qty", "price"),
+        ("Цена", "price", "total"),
+        ("Сумма", "total", None),
     ]
 
     table_top = y
@@ -183,12 +183,12 @@ def render_delivery_image(delivery: dict) -> str:
 
     # ─── FOOTER ───────────────────────────
     y += 40
-    total_text = f"Total amount: {delivery.get('total_amount', 0):,.2f} {delivery.get('currency', 'UZS')}"
+    total_text = f"Всего: {delivery.get('total_amount', 0):,.2f} {delivery.get('currency', 'UZS')}"
     w = draw.textbbox((0, 0), total_text, font=font_bold)[2]
     draw.text((TABLE_RIGHT - w, y), total_text, font=font_bold, fill="black")
 
     y += 50
-    draw.text((40, y), f"Remarks: {delivery.get('remarks') or '-'}", font=font_small, fill="black")
+    draw.text((40, y), f"Примечание: {delivery.get('remarks') or '-'}", font=font_small, fill="black")
 
     doc_num = delivery.get("document_number", "unknown")
     path = os.path.join(images_dir, f"delivery_{doc_num}.png")

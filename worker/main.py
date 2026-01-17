@@ -9,8 +9,8 @@ from worker.sap_sl_sync import sap_sl_sync_loop
 async def main():
     await asyncio.gather(
         hana_sync_loop(period=3600),      # deliveries from SAP
-        #sap_sl_sync_loop(period=300),     # approvals to SAP
-        bp_sync_loop(period=3600),    # BP sync every 6h - 3600 * 6
+        sap_sl_sync_loop(period=3600),     # approvals to SAP
+        bp_sync_loop(period=3600*6),    # BP sync every 6h - 3600 * 6
     )
 
 

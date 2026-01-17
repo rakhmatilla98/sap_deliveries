@@ -11,6 +11,6 @@ phone_keyboard = ReplyKeyboardMarkup(
 )
 
 webapp_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📦 Open Delivery Panel",
+        [InlineKeyboardButton(text="📦 Открыть Отгрузки",
                               web_app=WebAppInfo(url=WEBAPP_URL))]
     ])

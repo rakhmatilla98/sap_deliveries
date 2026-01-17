@@ -173,10 +173,10 @@ def sync_deliveries():
                 image = render_delivery_image(delivery_data)
 
                 caption = (
-                    f"<b>📦 New delivery</b>\n"
+                    f"<b>📦 Новая отгрузка</b>\n"
                     f"No: <b>{delivery.document_number}</b>\n"
-                    f"Date: {delivery.date.strftime('%d.%m.%Y')}\n"
-                    f"Amount: <b>{delivery.document_total_amount:,}</b>"
+                    f"Дата: {delivery.date.strftime('%d.%m.%Y')}\n"
+                    f"Сумма: <b>{delivery.document_total_amount:,}</b>"
                 )
 
                 send_telegram_delivery_image(

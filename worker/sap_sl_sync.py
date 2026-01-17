@@ -19,7 +19,7 @@ def sync_approved_to_sap():
     try:
         deliveries = db.query(Delivery).filter(
             Delivery.approved == True,
-            Delivery.synced_to_sap == False
+            Delivery.sap_synced == False
         ).all()
 
         if not deliveries:
@@ -44,7 +44,7 @@ def sync_approved_to_sap():
                     verify=False
                 )
                 if patch_resp.status_code == 204:
-                    d.synced_to_sap = True
+                    d.sap_synced = True
                     db.commit()
                     print(f"Delivery {d.document_number} synced to SAP")
                 else:

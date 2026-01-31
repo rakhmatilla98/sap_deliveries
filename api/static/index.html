@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,28 +11,57 @@
     <style>
         body {
             padding-bottom: 120px;
+            background: #fff;
+        }
+
+        /* Sticky year + arrows */
+        .top-controls {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            background: white;
+            border-bottom: 1px solid #eee;
+        }
+
+        /* Sticky tabs */
+        .tabs-sticky {
+            position: sticky;
+            top: 52px;
+            z-index: 999;
+            background: white;
+        }
+
+        /* Scroll only data */
+        .scroll-area {
+            max-height: calc(100vh - 190px);
+            overflow-y: auto;
         }
     </style>
 </head>
 <body>
 
-<div class="d-flex justify-content-between align-items-center mb-2">
-    <select id="yearSelect" class="form-select form-select-sm w-auto">
-        <option value="2027">2027</option>
-        <option value="2026">2026</option>
-        <option value="2025">2025</option>
-    </select>
-
-    <div>
-        <button id="prevBtn" class="btn btn-sm btn-outline-secondary">←</button>
-        <button id="nextBtn" class="btn btn-sm btn-outline-secondary">→</button>
-    </div>
-</div>
-
 <div class="container py-3">
-    <h5 class="mb-3">Отгрузки</h5>
 
-    <ul class="nav nav-tabs mb-3" id="tabs">
+    <!-- Year + pagination -->
+    <div class="top-controls px-3 pb-2">
+        <div class="d-flex justify-content-between align-items-center">
+            <select id="yearSelect" class="form-select form-select-sm w-auto">
+                <option value="2027">2027</option>
+                <option value="2026" selected>2026</option>
+                <option value="2025">2025</option>
+            </select>
+
+            <div class="d-flex gap-1">
+                <button id="prevBtn" class="btn btn-sm btn-outline-secondary">←</button>
+                <button id="nextBtn" class="btn btn-sm btn-outline-secondary">→</button>
+            </div>
+        </div>
+    </div>
+
+    <h5 class="mb-3 mt-2 px-3">Отгрузки</h5>
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-2 tabs-sticky px-3" id="tabs">
         <li class="nav-item">
             <a class="nav-link active" href="#" data-tab="today">Новые</a>
         </li>
@@ -41,10 +70,15 @@
         </li>
     </ul>
 
-    <div id="today"></div>
-    <div id="history" style="display:none"></div>
+    <!-- Scrollable content -->
+    <div class="scroll-area px-3">
+        <div id="today"></div>
+        <div id="history" style="display:none"></div>
+    </div>
+
 </div>
 
-<script src="/static/app.js?v=5"></script>
+<script src="/static/app.js?v=6"></script>
+
 </body>
 </html>

@@ -1,6 +1,10 @@
 // =====================================
 // Telegram WebApp init
 // =====================================
+let historyOffset = 0;
+const historyLimit = 10;
+let historyYear = new Date().getFullYear();
+
 let telegramUserId = null;
 
 if (window.Telegram && Telegram.WebApp) {
@@ -54,20 +58,23 @@ function spinnerHtml() {
 // Load deliveries
 // -------------------------------------
 async function loadDeliveries(tab) {
-    const todayDiv = document.getElementById("today");
-    const historyDiv = document.getElementById("history");
-
-    const container = tab === "today" ? todayDiv : historyDiv;
-
-    // 🔧 CHANGE 2: Show spinner while loading
+    const container = document.getElementById(tab);
     container.innerHTML = spinnerHtml();
 
-    const res = await apiFetch(`/api/${tab}`);
-    const deliveries = await res.json();
+    let url = `/api/${tab}`;
+
+    if (tab === "history") {
+        url += `?year=${historyYear}&limit=${historyLimit}&offset=${historyOffset}`;
+    }
+
+    const res = await apiFetch(url);
+    const data = await res.json();
+
+    const deliveries = tab === "history" ? data.items : data;
 
     container.innerHTML = "";
 
-    if (deliveries.length === 0) {
+    if (!deliveries || deliveries.length === 0) {
         container.innerHTML = "<p class='text-muted text-center'>Нет доставок</p>";
         return;
     }
@@ -76,22 +83,23 @@ async function loadDeliveries(tab) {
         const card = document.createElement("div");
         card.className = "card mb-2";
 
-        const date = new Date(d.date).toLocaleDateString('ru-RU', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric'
-        });
+        const date = new Date(d.date).toLocaleDateString('ru-RU');
 
-        // 🔧 CHANGE 3: Button has id for disabling
-        const approveBlock = d.approved
-            ? `<span class="badge bg-success mt-2">Approved</span>`
-            : `
-              <button id="approve-${d.id}"
-                      class="btn btn-success btn-sm mt-2"
-                      onclick="approveDelivery(${d.id})">
-                  Approve
-              </button>
+        // ✅ FIX: explicit approved check
+        let approveBlock = "";
+        if (tab === "today" && d.approved === false) {
+            approveBlock = `
+                <button id="approve-${d.id}"
+                        class="btn btn-success btn-sm mt-2"
+                        onclick="approveDelivery(${d.id})">
+                    Approve
+                </button>
             `;
+        } else if (d.approved === true) {
+            approveBlock = `
+                <span class="badge bg-success mt-2">Approved</span>
+            `;
+        }
 
         card.innerHTML = `
             <div class="card-body py-2">
@@ -100,7 +108,7 @@ async function loadDeliveries(tab) {
                 </div>
 
                 <div class="small text-muted">
-                    Sales: ${d.sales_manager}
+                    Sales: ${d.sales_manager || "-"}
                 </div>
 
                 <div class="small">
@@ -118,8 +126,83 @@ async function loadDeliveries(tab) {
         container.appendChild(card);
     });
 
+    if (tab === "history") {
+        document.getElementById("prevBtn").disabled = historyOffset === 0;
+        document.getElementById("nextBtn").disabled =
+            historyOffset + historyLimit >= data.total;
+    }
+
     Telegram.WebApp.expand();
 }
+
+
+//async function loadDeliveries(tab) {
+//    const todayDiv = document.getElementById("today");
+//    const historyDiv = document.getElementById("history");
+//
+//    const container = tab === "today" ? todayDiv : historyDiv;
+//
+//    // 🔧 CHANGE 2: Show spinner while loading
+//    container.innerHTML = spinnerHtml();
+//
+//    const res = await apiFetch(`/api/${tab}`);
+//    const deliveries = await res.json();
+//
+//    container.innerHTML = "";
+//
+//    if (deliveries.length === 0) {
+//        container.innerHTML = "<p class='text-muted text-center'>Нет доставок</p>";
+//        return;
+//    }
+//
+//    deliveries.forEach(d => {
+//        const card = document.createElement("div");
+//        card.className = "card mb-2";
+//
+//        const date = new Date(d.date).toLocaleDateString('ru-RU', {
+//            day: '2-digit',
+//            month: '2-digit',
+//            year: 'numeric'
+//        });
+//
+//        // 🔧 CHANGE 3: Button has id for disabling
+//        const approveBlock = d.approved
+//            ? `<span class="badge bg-success mt-2">Approved</span>`
+//            : `
+//              <button id="approve-${d.id}"
+//                      class="btn btn-success btn-sm mt-2"
+//                      onclick="approveDelivery(${d.id})">
+//                  Approve
+//              </button>
+//            `;
+//
+//        card.innerHTML = `
+//            <div class="card-body py-2">
+//                <div class="fw-bold">
+//                    №${d.document_number} – ${date}
+//                </div>
+//
+//                <div class="small text-muted">
+//                    Sales: ${d.sales_manager}
+//                </div>
+//
+//                <div class="small">
+//                    Amount: <b>${d.document_total_amount}</b>
+//                </div>
+//
+//                <div class="small text-muted">
+//                    ${d.remarks || ""}
+//                </div>
+//
+//                ${approveBlock}
+//            </div>
+//        `;
+//
+//        container.appendChild(card);
+//    });
+//
+//    Telegram.WebApp.expand();
+//}
 
 // -------------------------------------
 // Approve delivery
@@ -164,6 +247,25 @@ document.querySelectorAll("#tabs a").forEach(tab => {
         loadDeliveries(tab.dataset.tab);
     });
 });
+
+// -------------------------------------
+// Pagination buttons logic
+// -------------------------------------
+document.getElementById("prevBtn").onclick = () => {
+    historyOffset = Math.max(0, historyOffset - historyLimit);
+    loadDeliveries("history");
+};
+
+document.getElementById("nextBtn").onclick = () => {
+    historyOffset += historyLimit;
+    loadDeliveries("history");
+};
+
+document.getElementById("yearSelect").onchange = (e) => {
+    historyYear = e.target.value;
+    historyOffset = 0;
+    loadDeliveries("history");
+};
 
 // -------------------------------------
 // Initial load

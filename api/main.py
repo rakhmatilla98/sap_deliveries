@@ -2,9 +2,10 @@
 import os
 
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi import Query
 from fastapi.responses import FileResponse
-from sqlalchemy.orm import Session
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import Session
 
 from api.auth import get_current_user
 from shared.config import BASE_DIR, HOST, PORT, API_STATIC_DIR
@@ -70,18 +71,58 @@ def get_today(
 # -------------------------------------------------
 @app.get("/api/history")
 def get_history(
-        user: TelegramUser = Depends(get_current_user),
-        db: Session = Depends(get_db)
+    user: TelegramUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+
+    year: int | None = Query(None, ge=2000, le=2100),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
 ):
-    deliveries = (
-        db.query(Delivery)
-        .filter(
-            Delivery.card_code == user.card_code
+    query = db.query(Delivery).filter(
+        Delivery.card_code == user.card_code
+    )
+
+    if year:
+        start = f"{year}-01-01"
+        end = f"{year + 1}-01-01"
+
+        query = query.filter(
+            Delivery.date >= start,
+            Delivery.date < end
         )
+
+    total = query.count()
+
+    deliveries = (
+        query
         .order_by(Delivery.date.desc(), Delivery.created_at.desc())
+        .limit(limit)
+        .offset(offset)
         .all()
     )
-    return deliveries
+
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "items": deliveries
+    }
+
+
+# @app.get("/api/history")
+# def get_history(
+#         user: TelegramUser = Depends(get_current_user),
+#         db: Session = Depends(get_db)
+# ):
+#     deliveries = (
+#         db.query(Delivery)
+#         .filter(
+#             Delivery.card_code == user.card_code
+#         )
+#         .order_by(Delivery.date.desc(), Delivery.created_at.desc())
+#         .all()
+#     )
+#     return deliveries
 
 
 # -------------------------------------------------

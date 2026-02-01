@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ru">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -38,47 +39,79 @@
         }
     </style>
 </head>
+
 <body>
 
-<div class="container py-3">
+    <div class="container py-3">
 
-    <!-- Year + pagination -->
-    <div class="top-controls px-3 pb-2">
-        <div class="d-flex justify-content-between align-items-center">
-            <select id="yearSelect" class="form-select form-select-sm w-auto">
-                <option value="2027">2027</option>
-                <option value="2026" selected>2026</option>
-                <option value="2025">2025</option>
-            </select>
+        <!-- Year + pagination -->
+        <div class="top-controls px-3 pb-2">
+            <div class="d-flex justify-content-between align-items-center">
+                <select id="yearSelect" class="form-select form-select-sm w-auto">
+                    <option value="2027">2027</option>
+                    <option value="2026" selected>2026</option>
+                    <option value="2025">2025</option>
+                </select>
 
-            <div class="d-flex gap-1">
-                <button id="prevBtn" class="btn btn-sm btn-outline-secondary">←</button>
-                <button id="nextBtn" class="btn btn-sm btn-outline-secondary">→</button>
+                <div class="d-flex gap-1">
+                    <button id="prevBtn" class="btn btn-sm btn-outline-secondary">←</button>
+                    <button id="nextBtn" class="btn btn-sm btn-outline-secondary">→</button>
+                </div>
             </div>
         </div>
+
+        <h5 class="mb-3 mt-2 px-3">Отгрузки <small class="text-muted" style="font-size: 0.6em">v8</small></h5>
+
+        <!-- Tabs -->
+        <ul class="nav nav-tabs mb-2 tabs-sticky px-3" id="tabs">
+            <li class="nav-item">
+                <a class="nav-link active" href="#" data-tab="today">Новые</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-tab="history">Все</a>
+            </li>
+        </ul>
+
+        <!-- Scrollable content -->
+        <div class="scroll-area px-3">
+            <div id="today"></div>
+            <div id="history" style="display:none"></div>
+        </div>
+
+
+        <!-- Details Modal -->
+        <div class="modal fade" id="detailsModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Детали заказа</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body p-0">
+                        <table class="table table-striped table-sm mb-0" style="font-size: 0.9em;">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-3">Товар</th>
+                                    <th class="text-end">Кол-во</th>
+                                    <th class="text-end">Цена</th>
+                                    <th class="text-end pe-3">Сумма</th>
+                                </tr>
+                            </thead>
+                            <tbody id="detailsTableBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary w-100" data-bs-dismiss="modal">Закрыть</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 
-    <h5 class="mb-3 mt-2 px-3">Отгрузки</h5>
-
-    <!-- Tabs -->
-    <ul class="nav nav-tabs mb-2 tabs-sticky px-3" id="tabs">
-        <li class="nav-item">
-            <a class="nav-link active" href="#" data-tab="today">Новые</a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" href="#" data-tab="history">Все</a>
-        </li>
-    </ul>
-
-    <!-- Scrollable content -->
-    <div class="scroll-area px-3">
-        <div id="today"></div>
-        <div id="history" style="display:none"></div>
-    </div>
-
-</div>
-
-<script src="/static/app.js?v=6"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/app.js?v=8"></script>
 
 </body>
+
 </html>

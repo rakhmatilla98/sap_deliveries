@@ -4,6 +4,8 @@
 let historyOffset = 0;
 const historyLimit = 10;
 let historyYear = new Date().getFullYear();
+let allDeliveriesMap = {}; // local cache
+
 
 let telegramUserId = null;
 
@@ -80,6 +82,8 @@ async function loadDeliveries(tab) {
     }
 
     deliveries.forEach(d => {
+        allDeliveriesMap[d.id] = d; // Store for details view
+
         const card = document.createElement("div");
         card.className = "card mb-2";
 
@@ -120,6 +124,10 @@ async function loadDeliveries(tab) {
                 </div>
 
                 ${approveBlock}
+
+                <button class="btn btn-outline-primary btn-sm mt-2 w-100" onclick="showDetails(${d.id})">
+                    Показать товары
+                </button>
             </div>
         `;
 
@@ -266,6 +274,75 @@ document.getElementById("yearSelect").onchange = (e) => {
     historyOffset = 0;
     loadDeliveries("history");
 };
+
+// -------------------------------------
+// Show details modal
+// -------------------------------------
+function showDetails(id) {
+    const d = allDeliveriesMap[id];
+    if (!d) return;
+
+    if (typeof bootstrap === 'undefined') {
+        alert("Bootstrap JS not found");
+        return;
+    }
+
+    const tbody = document.getElementById("detailsTableBody");
+    tbody.innerHTML = "";
+
+    if (!d.items || d.items.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center text-muted p-3">
+                    Нет товаров
+                </td>
+            </tr>
+        `;
+    } else {
+        let totalSum = 0;
+
+        d.items.forEach(item => {
+            const lineTotal = item.line_total || 0;
+            totalSum += lineTotal;
+
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td class="ps-3">
+                    <div class="fw-bold">${item.item_name || item.item_code}</div>
+                    <div class="small text-muted">${item.item_code || ''}</div>
+                </td>
+                <td class="text-end align-middle">
+                    ${item.quantity}
+                </td>
+                <td class="text-end align-middle">
+                    ${item.price ? item.price.toLocaleString() : '-'}
+                </td>
+                <td class="text-end pe-3 align-middle">
+                    <span class="fw-bold">${lineTotal.toLocaleString()}</span>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        // Add total row
+        const trTotal = document.createElement("tr");
+        trTotal.className = "table-light fw-bold";
+        trTotal.innerHTML = `
+            <td colspan="3" class="text-end py-2">Итого:</td>
+            <td class="text-end pe-3 py-2">${totalSum.toLocaleString()}</td>
+        `;
+        tbody.appendChild(trTotal);
+    }
+
+    const modalEl = document.getElementById('detailsModal');
+    if (modalEl) {
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+    }
+}
+
+// Make functions globally available
+window.showDetails = showDetails;
 
 // -------------------------------------
 // Initial load

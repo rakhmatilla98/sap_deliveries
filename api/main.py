@@ -5,12 +5,13 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi import Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from api.auth import get_current_user
 from shared.config import BASE_DIR, HOST, PORT, API_STATIC_DIR
 from shared.db import SessionLocal
 from shared.models import Delivery, TelegramUser
+from shared.schemas import DeliveryOut, HistoryOut
 
 app = FastAPI(title="Delivery API")
 STATIC_DIR = os.path.join(BASE_DIR, "api", "static")
@@ -49,13 +50,14 @@ def index():
 # -------------------------------------------------
 # Get unapproved deliveries (Today / New)
 # -------------------------------------------------
-@app.get("/api/today")
+@app.get("/api/today", response_model=list[DeliveryOut])
 def get_today(
         user: TelegramUser = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
     deliveries = (
         db.query(Delivery)
+        .options(joinedload(Delivery.items))
         .filter(
             Delivery.approved == False,
             Delivery.card_code == user.card_code
@@ -69,7 +71,7 @@ def get_today(
 # -------------------------------------------------
 # Get all deliveries (History)
 # -------------------------------------------------
-@app.get("/api/history")
+@app.get("/api/history", response_model=HistoryOut)
 def get_history(
     user: TelegramUser = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -78,7 +80,7 @@ def get_history(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ):
-    query = db.query(Delivery).filter(
+    query = db.query(Delivery).options(joinedload(Delivery.items)).filter(
         Delivery.card_code == user.card_code
     )
 

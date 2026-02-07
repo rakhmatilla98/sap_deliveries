@@ -73,3 +73,62 @@ class TelegramUser(Base):
 
     last_sap_sync = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
+# -------------------------------------------------
+# Marketplace Models
+# -------------------------------------------------
+
+class Item(Base):
+    __tablename__ = "items"
+
+    item_code = Column(String, primary_key=True, index=True)
+    item_name = Column(String, index=True)
+    quantity = Column(Float, default=0.0)
+    price = Column(Float, default=0.0)
+    currency = Column(String, default="UZS")
+    
+    # Optional: Image URL or other metadata
+    image_url = Column(String, nullable=True)
+
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+
+class Order(Base):
+    __tablename__ = "orders"
+
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Link to Telegram User (who made the order)
+    telegram_id = Column(Integer, index=True) 
+    card_code = Column(String, nullable=True) # If we know the BP
+    card_name = Column(String, nullable=True)
+
+    doc_total = Column(Float, default=0.0)
+    currency = Column(String, default="UZS")
+    
+    status = Column(String, default="new") # new, synced, error
+    
+    # SAP Sync info
+    sap_doc_entry = Column(Integer, nullable=True)
+    sap_doc_num = Column(String, nullable=True)
+    sap_error = Column(String, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
+
+
+class OrderItem(Base):
+    __tablename__ = "order_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id"))
+    
+    item_code = Column(String)
+    item_name = Column(String)
+    quantity = Column(Float)
+    price = Column(Float)
+    line_total = Column(Float)
+
+    order = relationship("Order", back_populates="items")

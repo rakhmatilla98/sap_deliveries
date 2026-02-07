@@ -10,8 +10,8 @@ from sqlalchemy.orm import Session, joinedload
 from api.auth import get_current_user
 from shared.config import BASE_DIR, HOST, PORT, API_STATIC_DIR
 from shared.db import SessionLocal
-from shared.models import Delivery, TelegramUser
-from shared.schemas import DeliveryOut, HistoryOut
+from shared.models import Delivery, TelegramUser, Item, Order, OrderItem
+from shared.schemas import DeliveryOut, HistoryOut, ItemOut, OrderIn
 
 app = FastAPI(title="Delivery API")
 STATIC_DIR = os.path.join(BASE_DIR, "api", "static")
@@ -31,6 +31,77 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+# -------------------------------------------------
+# Marketplace Endpoints
+# -------------------------------------------------
+
+@app.get("/api/items", response_model=list[ItemOut])
+def get_items(
+    q: str | None = None,
+    limit: int = 20,
+    offset: int = 0,
+    db: Session = Depends(get_db)
+):
+    query = db.query(Item).filter(Item.quantity > 0) # Only in stock?
+    
+    if q:
+        query = query.filter(Item.item_name.ilike(f"%{q}%"))
+        
+    items = query.order_by(Item.updated_at.desc()).limit(limit).offset(offset).all()
+    return items
+
+
+@app.post("/api/orders")
+def create_order(
+    payload: OrderIn,
+    user: TelegramUser = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if not payload.items:
+        raise HTTPException(status_code=400, detail="Cart is empty")
+        
+    # Calculate Total
+    total_amount = 0.0
+    order_items = []
+    
+    for cart_item in payload.items:
+        db_item = db.query(Item).filter(Item.item_code == cart_item.item_code).first()
+        if not db_item:
+            continue # Skip invalid items or raise error
+            
+        line_total = db_item.price * cart_item.quantity
+        total_amount += line_total
+        
+        order_items.append(OrderItem(
+            item_code=db_item.item_code,
+            item_name=db_item.item_name,
+            quantity=cart_item.quantity,
+            price=db_item.price,
+            line_total=line_total
+        ))
+        
+    if not order_items:
+        raise HTTPException(status_code=400, detail="No valid items in order")
+        
+    # Create Order
+    new_order = Order(
+        telegram_id=user.telegram_id,
+        card_code=user.card_code,
+        card_name=user.card_name,
+        doc_total=total_amount,
+        items=order_items
+    )
+    
+    db.add(new_order)
+    db.commit()
+    db.refresh(new_order)
+    
+    # Optional: Trigger sync immediately or let worker handle it
+    # For now, let worker handle it via "new" status
+    
+    return {"status": "ok", "order_id": new_order.id}
 
 
 # -------------------------------------------------

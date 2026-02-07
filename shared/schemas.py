@@ -37,3 +37,28 @@ class HistoryOut(BaseModel):
     limit: int
     offset: int
     items: list[DeliveryOut]
+
+
+# -------------------------------------------------
+# Marketplace Schemas
+# -------------------------------------------------
+
+class ItemOut(BaseModel):
+    item_code: str
+    item_name: str
+    quantity: float
+    price: float
+    currency: str
+    image_url: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class CartItem(BaseModel):
+    item_code: str
+    quantity: float
+
+
+class OrderIn(BaseModel):
+    items: list[CartItem]

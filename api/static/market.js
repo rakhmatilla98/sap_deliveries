@@ -39,9 +39,12 @@ function updateCartUI() {
     const totalItems = Object.values(cart).reduce((sum, i) => sum + i.quantity, 0);
     const totalPrice = Object.values(cart).reduce((sum, i) => sum + (i.quantity * i.item.price), 0);
 
+    // Use currency of the first item in cart, or default to UZS
+    const currency = Object.values(cart).length > 0 ? Object.values(cart)[0].item.currency : 'UZS';
+
     // Update Main Button
     if (totalItems > 0) {
-        tg.MainButton.text = `Order ${formatPrice(totalPrice)}`;
+        tg.MainButton.text = `Order ${formatPrice(totalPrice, currency)}`;
         tg.MainButton.isVisible = true;
     } else {
         tg.MainButton.isVisible = false;
@@ -102,7 +105,7 @@ function renderItems(items) {
             </div>
             <div class="product-info">
                 <div class="product-title">${item.item_name}</div>
-                <div class="product-price">${formatPrice(item.price)}</div>
+                <div class="product-price">${formatPrice(item.price, item.currency)}</div>
             </div>
         `;
 
@@ -164,8 +167,13 @@ window.toggleCart = (itemCode) => {
     updateCartUI();
 }
 
-function formatPrice(price) {
-    return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', maximumFractionDigits: 0 }).format(price);
+function formatPrice(price, currency = 'UZS') {
+    return new Intl.NumberFormat('ru-RU', {
+        style: 'currency',
+        currency: currency,
+        minimumFractionDigits: 3,
+        maximumFractionDigits: 3
+    }).format(price);
 }
 
 async function handleCheckout() {

@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session, joinedload
 
 from api.auth import get_current_user
-from shared.config import BASE_DIR, HOST, PORT, API_STATIC_DIR
+from shared.config import BASE_DIR, HOST, PORT, API_STATIC_DIR, DATA_DIR
 from shared.db import SessionLocal
 from shared.models import Delivery, TelegramUser, Item, Order, OrderItem
 from shared.schemas import DeliveryOut, HistoryOut, ItemOut, OrderIn
@@ -19,6 +19,11 @@ app.mount(
     "/static",
     StaticFiles(directory=STATIC_DIR),
     name="static"
+)
+app.mount(
+    "/data",
+    StaticFiles(directory=DATA_DIR),
+    name="data"
 )
 
 
@@ -44,12 +49,23 @@ def get_items(
     offset: int = 0,
     db: Session = Depends(get_db)
 ):
-    query = db.query(Item).filter(Item.quantity > 0) # Only in stock?
+    query = db.query(Item).options(joinedload(Item.images)).filter(Item.quantity > 0) # Only in stock?
     
     if q:
         query = query.filter(Item.item_name.ilike(f"%{q}%"))
         
     items = query.order_by(Item.updated_at.desc()).limit(limit).offset(offset).all()
+    
+    # Populate image_url
+    for item in items:
+        if item.images:
+            # Pick primary or first
+            primary_img = next((img for img in item.images if img.is_primary), item.images[0])
+            path = primary_img.file_path.replace("\\", "/")
+            if not path.startswith("/"):
+                path = "/" + path
+            item.image_url = path
+            
     return items
 
 

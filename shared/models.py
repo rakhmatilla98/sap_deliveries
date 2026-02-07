@@ -88,10 +88,22 @@ class Item(Base):
     price = Column(Float, default=0.0)
     currency = Column(String, default="UZS")
     
-    # Optional: Image URL or other metadata
-    image_url = Column(String, nullable=True)
 
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+    images = relationship("ItemImage", back_populates="item", cascade="all, delete-orphan")
+
+
+class ItemImage(Base):
+    __tablename__ = "item_images"
+
+    id = Column(Integer, primary_key=True, index=True)
+    item_code = Column(String, ForeignKey("items.item_code"), index=True)
+    file_path = Column(String, nullable=False)
+    is_primary = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    item = relationship("Item", back_populates="images")
 
 
 class Order(Base):

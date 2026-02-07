@@ -13,7 +13,7 @@ async def main():
         #hana_sync_loop(period=3600),      # deliveries from SAP
         #sap_sl_sync_loop(period=3600),     # approvals to SAP
         #bp_sync_loop(period=3600*6),    # BP sync every 6h - 3600 * 6
-        item_sync_loop(period=3600),    # Item sync every 1h
+        item_sync_loop(period=3600*6),    # Item sync every 6h
         #order_sync_loop(period=60),     # Order sync every 1 min (or faster/slower)
     )
 

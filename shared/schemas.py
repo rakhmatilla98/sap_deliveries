@@ -62,3 +62,27 @@ class CartItem(BaseModel):
 
 class OrderIn(BaseModel):
     items: list[CartItem]
+
+
+# Cart Schemas
+class CartItemIn(BaseModel):
+    item_code: str
+    quantity: int = 1
+
+
+class CartItemOut(BaseModel):
+    item_code: str
+    item_name: str
+    quantity: int
+    price: float
+    currency: str
+    image_url: str | None = None
+    line_total: float
+    
+    class Config:
+        from_attributes = True
+
+
+class CartUpdateIn(BaseModel):
+    quantity: int
+

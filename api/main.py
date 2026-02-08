@@ -121,6 +121,159 @@ def create_order(
 
 
 # -------------------------------------------------
+# Cart Endpoints (Server-side persistence)
+# -------------------------------------------------
+
+@app.get("/api/cart", response_model=list)
+def get_cart(
+    user: TelegramUser = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get user's cart with full item details"""
+    from shared.models import Cart
+    from shared.schemas import CartItemOut
+    
+    cart_items = db.query(Cart).filter(Cart.telegram_id == user.telegram_id).all()
+    
+    result = []
+    for cart_item in cart_items:
+        db_item = db.query(Item).filter(Item.item_code == cart_item.item_code).first()
+        if not db_item:
+            continue  # Skip if item no longer exists
+        
+        # Get image URL
+        image_url = None
+        if db_item.images:
+            primary_img = next((img for img in db_item.images if img.is_primary), db_item.images[0])
+            path = primary_img.file_path.replace("\\", "/")
+            if not path.startswith("/"):
+                path = "/" + path
+            image_url = path
+        
+        result.append({
+            "item_code": db_item.item_code,
+            "item_name": db_item.item_name,
+            "quantity": cart_item.quantity,
+            "price": db_item.price,
+            "currency": db_item.currency,
+            "image_url": image_url,
+            "line_total": db_item.price * cart_item.quantity
+        })
+    
+    return result
+
+
+@app.post("/api/cart/add")
+def add_to_cart(
+    cart_in: dict,
+    user: TelegramUser = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Add item to cart or increment quantity if exists"""
+    from shared.models import Cart
+    
+    item_code = cart_in.get("item_code")
+    quantity = cart_in.get("quantity", 1)
+    
+    if not item_code:
+        raise HTTPException(status_code=400, detail="item_code required")
+    
+    # Check if item exists
+    db_item = db.query(Item).filter(Item.item_code == item_code).first()
+    if not db_item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    
+    # Check if already in cart
+    cart_item = db.query(Cart).filter(
+        Cart.telegram_id == user.telegram_id,
+        Cart.item_code == item_code
+    ).first()
+    
+    if cart_item:
+        # Increment quantity
+        cart_item.quantity += quantity
+    else:
+        # Create new cart item
+        cart_item = Cart(
+            telegram_id=user.telegram_id,
+            item_code=item_code,
+            quantity=quantity
+        )
+        db.add(cart_item)
+    
+    db.commit()
+    return {"status": "ok", "quantity": cart_item.quantity}
+
+
+@app.put("/api/cart/update/{item_code}")
+def update_cart_item(
+    item_code: str,
+    update_in: dict,
+    user: TelegramUser = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update cart item quantity"""
+    from shared.models import Cart
+    
+    quantity = update_in.get("quantity")
+    if quantity is None:
+        raise HTTPException(status_code=400, detail="quantity required")
+    
+    cart_item = db.query(Cart).filter(
+        Cart.telegram_id == user.telegram_id,
+        Cart.item_code == item_code
+    ).first()
+    
+    if not cart_item:
+        raise HTTPException(status_code=404, detail="Item not in cart")
+    
+    if quantity <= 0:
+        # Remove item
+        db.delete(cart_item)
+    else:
+        cart_item.quantity = quantity
+    
+    db.commit()
+    return {"status": "ok"}
+
+
+@app.delete("/api/cart/remove/{item_code}")
+def remove_from_cart(
+    item_code: str,
+    user: TelegramUser = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Remove item from cart"""
+    from shared.models import Cart
+    
+    cart_item = db.query(Cart).filter(
+        Cart.telegram_id == user.telegram_id,
+        Cart.item_code == item_code
+    ).first()
+    
+    if cart_item:
+        db.delete(cart_item)
+        db.commit()
+    
+    return {"status": "ok"}
+
+
+@app.delete("/api/cart/clear")
+def clear_cart(
+    user: TelegramUser = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Clear all items from user's cart"""
+    from shared.models import Cart
+    
+    db.query(Cart).filter(Cart.telegram_id == user.telegram_id).delete()
+    db.commit()
+    
+    return {"status": "ok"}
+
+
+
+# -------------------------------------------------
 # Health check
 # -------------------------------------------------
 @app.get("/health")

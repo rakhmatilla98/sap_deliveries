@@ -144,3 +144,22 @@ class OrderItem(Base):
     line_total = Column(Float)
 
     order = relationship("Order", back_populates="items")
+
+
+class Cart(Base):
+    """Server-side cart storage"""
+    __tablename__ = "carts"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    telegram_id = Column(Integer, index=True, nullable=False)
+    item_code = Column(String, index=True, nullable=False)
+    quantity = Column(Integer, default=1)
+    
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    
+    # Unique constraint: one user can have one entry per item
+    __table_args__ = (
+        {'sqlite_autoincrement': True}
+    )
+

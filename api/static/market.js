@@ -184,13 +184,23 @@ async function handleCheckout() {
         quantity: c.quantity  // Always 1 in toggle mode
     }));
 
+    // Get user ID
+    const userId = tg.initDataUnsafe?.user?.id;
+
+    if (!userId) {
+        tg.showAlert("User ID missing. Please open from Telegram.");
+        tg.MainButton.hideProgress();
+        return;
+    }
+
     try {
         const res = await fetch(`${API_BASE}/api/orders`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
                 "Authorization": "Bearer " + tg.initData,
-                "twa-init-data": tg.initData
+                "twa-init-data": tg.initData,
+                "X-Telegram-User-Id": userId.toString()
             },
             body: JSON.stringify({ items: orderItems })
         });

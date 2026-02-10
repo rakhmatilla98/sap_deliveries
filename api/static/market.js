@@ -1,15 +1,12 @@
 // market.js
-
 const tg = window.Telegram.WebApp;
 const API_BASE = ""; // Relative
 
-let cart = {}; // { item_code: { quantity: 1, item: {...} } }
+// Removed local cart - now using server-side cart from cart.js
 let allItems = [];
 let searchQuery = "";
 
 document.addEventListener("DOMContentLoaded", () => {
-    // Assuming tabs logic is in app.js or we hook into it.
-    // We will expose initMarket globally or run it if Market tab is active.
     initMarket();
 });
 
@@ -29,29 +26,7 @@ function initMarket() {
         });
     }
 
-    // TG Main Button setup
-    tg.MainButton.onClick(() => {
-        handleCheckout();
-    });
-}
-
-function updateCartUI() {
-    const totalItems = Object.values(cart).reduce((sum, i) => sum + i.quantity, 0);
-    const totalPrice = Object.values(cart).reduce((sum, i) => sum + (i.quantity * i.item.price), 0);
-
-    // Use currency of the first item in cart, or default to UZS
-    const currency = Object.values(cart).length > 0 ? Object.values(cart)[0].item.currency : 'UZS';
-
-    // Update Main Button
-    if (totalItems > 0) {
-        tg.MainButton.text = `Order ${formatPrice(totalPrice, currency)}`;
-        tg.MainButton.isVisible = true;
-    } else {
-        tg.MainButton.isVisible = false;
-    }
-
-    // Opt: refresh grid to show "in-cart" state
-    renderItems(allItems);
+    // No local MainButton logic here - handled by cart.js and section navigation
 }
 
 async function loadItems() {
@@ -69,7 +44,6 @@ async function loadItems() {
 
     } catch (e) {
         console.error(e);
-        // Show error UI
     }
 }
 
@@ -80,9 +54,6 @@ function renderItems(items) {
     grid.innerHTML = "";
 
     items.forEach(item => {
-        const inCart = cart[item.item_code];
-        const qty = inCart ? inCart.quantity : 0;
-
         const card = document.createElement("div");
         card.className = "product-card";
 
@@ -99,8 +70,8 @@ function renderItems(items) {
                 <img src="${imgUrl}" class="product-image" alt="${item.item_name}" loading="lazy" 
                      onerror="this.onerror=null; this.src='${placeholder}'">
                 
-                <button class="add-btn ${qty > 0 ? 'in-cart' : ''}" onclick="toggleCart('${item.item_code}')">
-                    ${qty > 0 ? qty : '+'}
+                <button class="add-btn" onclick="addToCartFromCatalog('${item.item_code}')">
+                    +
                 </button>
             </div>
             <div class="product-info">
@@ -109,118 +80,29 @@ function renderItems(items) {
             </div>
         `;
 
-        // Expose item data for click handler (could be cleaner)
-        card.dataset.json = JSON.stringify(item);
-
         grid.appendChild(card);
     });
 }
 
-window.toggleCart = (itemCode) => {
-    // Find item
-    const item = allItems.find(i => i.item_code === itemCode);
-    if (!item) return;
-
-    if (cart[itemCode]) {
-        // Increment (or toggle off? Uzum usually just adds, let's say tap to add 1, hold to remove? 
-        // For simplicity: Simple toggle 0 -> 1 -> 0 or just Add.
-        // Let's implement: Click = Add 1. If we want remove, we need minus button.
-        // Re-read req: "Cart system".
-        // Let's do: Click (+) -> Becomes (1). Click (1) -> Becomes (2)? 
-        // Or Click (1) -> Removes?
-        // Let's go with: Click adds 1. To remove/decrement, usually implies a modal or +/- controls.
-        // User asked for "Light" marketplace. 
-        // Let's make it: Click adds 1. Long press or different UI to remove?
-        // Simplest: Click toggles 0 <-> 1. (Uzum style usually has +/- counters).
-        // Let's implement basic +/- counter if in cart.
-
-        cart[itemCode].quantity++;
+// Global function to add to cart from the catalog grid
+window.addToCartFromCatalog = async (itemCode) => {
+    if (window.addToCartById) {
+        await window.addToCartById(itemCode, 1);
+        // Optional: Provide feedback or navigate to cart
+        if (window.navigateToSection) {
+            // Uncomment the line below if you want automatic navigation to cart
+            // window.navigateToSection('cartSection');
+        }
     } else {
-        cart[itemCode] = { quantity: 1, item: item };
+        console.error("addToCartById function not found. Ensure cart.js is loaded.");
     }
-
-    updateCartUI();
 };
-
-// Simplified Toggle: if in cart, remove. If not, add? No, ordering needs quantity.
-// Let's stick to: Click = +1. 
-// We should probably add a clear button or "Reset" in cart view. 
-// For this "Light" version, let's keep it simple: Click button adds 1. 
-// To clear, maybe click "Order" and then edit?
-// Actually, let's change logic: Click on button -> if 0, becomes 1. If >0, becomes 0 (Toggle).
-// Just for simplicity of the prompt's "Light" requirement unless user asked for full cart.
-// Req: "Cart system".
-// I'll stick to: Click adds +1.
-// But I need a way to remove.
-// I won't overengineer right now. I'll make it toggle 1 item for now OR add +1.
-// Let's do: Click = Toggle (Add/Remove). Simple.
-// If user needs qty > 1, they can ask.
-window.toggleCart = (itemCode) => {
-    const item = allItems.find(i => i.item_code === itemCode);
-    if (!item) return;
-
-    if (cart[itemCode]) {
-        delete cart[itemCode];
-    } else {
-        cart[itemCode] = { quantity: 1, item: item };
-    }
-    updateCartUI();
-}
 
 function formatPrice(price, currency = 'UZS') {
     return new Intl.NumberFormat('ru-RU', {
         style: 'currency',
         currency: currency,
-        minimumFractionDigits: 3,
-        maximumFractionDigits: 3
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
     }).format(price);
-}
-
-async function handleCheckout() {
-    tg.MainButton.showProgress();
-
-    const orderItems = Object.values(cart).map(c => ({
-        item_code: c.item.item_code,
-        quantity: c.quantity  // Always 1 in toggle mode
-    }));
-
-    // Get user ID
-    const userId = tg.initDataUnsafe?.user?.id;
-
-    if (!userId) {
-        tg.showAlert("User ID missing. Please open from Telegram.");
-        tg.MainButton.hideProgress();
-        return;
-    }
-
-    try {
-        const res = await fetch(`${API_BASE}/api/orders`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": "Bearer " + tg.initData,
-                "twa-init-data": tg.initData,
-                "X-Telegram-User-Id": userId.toString()
-            },
-            body: JSON.stringify({ items: orderItems })
-        });
-
-        if (!res.ok) {
-            const err = await res.json();
-            throw new Error(err.detail || "Order failed");
-        }
-
-        const data = await res.json();
-        tg.showAlert(`Order #${data.order_id} placed!`, () => {
-            tg.close();
-        });
-
-        cart = {};
-        updateCartUI();
-
-    } catch (e) {
-        tg.showAlert(`Error: ${e.message}`);
-    } finally {
-        tg.MainButton.hideProgress();
-    }
 }

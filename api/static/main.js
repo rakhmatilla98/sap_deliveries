@@ -6,21 +6,21 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // Navigation between sections
-window.navigateToSection = function(sectionId) {
+window.navigateToSection = function (sectionId) {
     // Hide all sections
     document.querySelectorAll('.section').forEach(sec => sec.classList.remove('active'));
-    
+
     // Show target section
     const targetSection = document.getElementById(sectionId);
     if (targetSection) {
         targetSection.classList.add('active');
     }
-    
+
     // Update bottom nav active state
     document.querySelectorAll('.bottom-nav .nav-item').forEach(item => {
         item.classList.remove('active');
     });
-    
+
     // Set active based on section
     const navIndex = {
         'mainSection': 0,
@@ -29,7 +29,7 @@ window.navigateToSection = function(sectionId) {
         'profileSection': 3
     };
     document.querySelectorAll('.bottom-nav .nav-item')[navIndex[sectionId]]?.classList.add('active');
-    
+
     // Expand telegram
     if (window.Telegram && Telegram.WebApp) {
         Telegram.WebApp.expand();
@@ -46,7 +46,7 @@ async function loadMainSection() {
 async function loadCategories() {
     const categoryScroll = document.getElementById('categoryScroll');
     if (!categoryScroll) return;
-    
+
     // For now, show static categories (can be replaced with API call)
     const categories = [
         { name: 'All', icon: '📱', value: '' },
@@ -56,7 +56,7 @@ async function loadCategories() {
         { name: 'Books', icon: '📚', value: 'books' },
         { name: 'Toys', icon: '🧸', value: 'toys' }
     ];
-    
+
     categoryScroll.innerHTML = categories.map(cat => `
         <div class="category-chip" onclick="filterByCategory('${cat.value}')">
             <div class="icon">${cat.icon}</div>
@@ -65,7 +65,7 @@ async function loadCategories() {
     `).join('');
 }
 
-window.filterByCategory = function(category) {
+window.filterByCategory = function (category) {
     // Navigate to catalog with filter
     navigateToSection('catalogSection');
     // Trigger category filter in catalog (market.js)
@@ -78,26 +78,26 @@ window.filterByCategory = function(category) {
 async function loadFeaturedProducts() {
     const featuredGrid = document.getElementById('featuredGrid');
     if (!featuredGrid) return;
-    
+
     try {
         // Fetch featured products (limited to 6)
         const res = await fetch('/api/items?limit=6');
         if (!res.ok) throw new Error('Failed to load featured products');
-        
+
         const items = await res.json();
-        
+
         if (!items || items.length === 0) {
             featuredGrid.innerHTML = '<p class="text-muted text-center">No products available</p>';
             return;
         }
-        
+
         featuredGrid.innerHTML = items.map(item => {
             const placeholder = "https://placehold.co/300x300?text=No+Image";
             let imgUrl = item.image_url;
             if (!imgUrl || imgUrl.trim() === "None" || imgUrl.trim() === "") {
                 imgUrl = placeholder;
             }
-            
+
             return `
                 <div class="product-card" onclick="viewProduct('${item.item_code}')">
                     <div class="product-image-container">
@@ -112,20 +112,20 @@ async function loadFeaturedProducts() {
                 </div>
             `;
         }).join('');
-        
+
     } catch (e) {
         console.error('Error loading featured products:', e);
         featuredGrid.innerHTML = '<p class="text-muted text-center">Error loading products</p>';
     }
 }
 
-window.viewProduct = function(itemCode) {
+window.viewProduct = function (itemCode) {
     // Navigate to catalog and show product details
     navigateToSection('catalogSection');
     // Could open product modal here
 };
 
-window.quickAddToCart = function(itemCode) {
+window.quickAddToCart = function (itemCode) {
     // Use cart.js function to add to cart
     if (window.addToCartById) {
         window.addToCartById(itemCode, 1);
@@ -137,23 +137,23 @@ function initCarousel() {
     const slides = document.querySelectorAll('.banner-slide');
     const dots = document.querySelectorAll('.carousel-indicators .dot');
     let currentSlide = 0;
-    
+
     function showSlide(index) {
         slides.forEach(s => s.classList.remove('active'));
         dots.forEach(d => d.classList.remove('active'));
-        
+
         slides[index].classList.add('active');
         dots[index].classList.add('active');
     }
-    
+
     function nextSlide() {
         currentSlide = (currentSlide + 1) % slides.length;
         showSlide(currentSlide);
     }
-    
+
     // Auto-rotate every 5 seconds
     setInterval(nextSlide, 5000);
-    
+
     // Click on dots to change slide
     dots.forEach((dot, index) => {
         dot.addEventListener('click', () => {
@@ -182,7 +182,7 @@ function formatPrice(price, currency = 'UZS') {
     return new Intl.NumberFormat('ru-RU', {
         style: 'currency',
         currency: currency,
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
     }).format(price);
 }

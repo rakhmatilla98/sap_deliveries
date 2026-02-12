@@ -29,6 +29,7 @@ async function loadCartFromServer() {
                 };
             });
             renderCart();
+            syncProductButtons();
         }
     } catch (e) {
         console.error('Error loading cart:', e);
@@ -37,7 +38,14 @@ async function loadCartFromServer() {
 }
 
 // Add item to cart
-window.addToCartById = async function (itemCode, quantity = 1) {
+window.addToCartById = async function (itemCode, quantity = 1, btnElement = null) {
+    let originalContent = '';
+    if (btnElement) {
+        originalContent = btnElement.innerHTML;
+        btnElement.disabled = true;
+        btnElement.innerHTML = '<span class="button-loader"></span>';
+    }
+
     try {
         const userId = window.telegramUserId || window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
         if (!userId) {
@@ -57,16 +65,32 @@ window.addToCartById = async function (itemCode, quantity = 1) {
         if (res.ok) {
             await loadCartFromServer();
             showCartFeedback('Added to cart!');
+            syncProductButtons();
         }
     } catch (e) {
         console.error('Error adding to cart:', e);
         alert('Failed to add to cart');
+        // Restore button state on error
+        if (btnElement) {
+            btnElement.innerHTML = originalContent;
+            btnElement.disabled = false;
+        }
     }
 };
 
 // Update quantity
-async function updateCartQuantity(itemCode, newQuantity) {
-    if (newQuantity < 1) return removeFromCart(itemCode);
+async function updateCartQuantity(itemCode, newQuantity, btnElement = null) {
+    if (newQuantity < 1) return removeFromCart(itemCode, btnElement);
+
+    let originalContent = '';
+    if (btnElement) {
+        originalContent = btnElement.innerHTML;
+        btnElement.disabled = true;
+        // Check if button is small (grid/cart qty btn) to determine loader style
+        const isSmallBtn = btnElement.classList.contains('qty-btn') || btnElement.classList.contains('grid-qty-btn');
+        const loaderClass = isSmallBtn ? 'button-loader dark' : 'button-loader';
+        btnElement.innerHTML = `<span class="${loaderClass}"></span>`;
+    }
 
     try {
         const userId = window.telegramUserId || window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
@@ -81,14 +105,30 @@ async function updateCartQuantity(itemCode, newQuantity) {
 
         if (res.ok) {
             await loadCartFromServer();
+            syncProductButtons();
         }
     } catch (e) {
         console.error('Error updating cart:', e);
+        // Restore button state on error
+        if (btnElement) {
+            btnElement.innerHTML = originalContent;
+            btnElement.disabled = false;
+        }
     }
 }
 
 // Remove from cart
-async function removeFromCart(itemCode) {
+async function removeFromCart(itemCode, btnElement = null) {
+    let originalContent = '';
+    if (btnElement) {
+        originalContent = btnElement.innerHTML;
+        btnElement.disabled = true;
+        // Determine loader style
+        const isSmallBtn = btnElement.classList.contains('qty-btn') || btnElement.classList.contains('grid-qty-btn') || btnElement.classList.contains('cart-item-remove');
+        const loaderClass = isSmallBtn ? 'button-loader dark' : 'button-loader';
+        btnElement.innerHTML = `<span class="${loaderClass}"></span>`;
+    }
+
     try {
         const userId = window.telegramUserId || window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
         const res = await fetch(`/api/cart/remove/${itemCode}`, {
@@ -100,9 +140,16 @@ async function removeFromCart(itemCode) {
 
         if (res.ok) {
             await loadCartFromServer();
+            // Note: renderCart() will be called by loadCartFromServer, which rebuilds the UI.
+            // So we don't strictly need to restore the button state if successful.
         }
     } catch (e) {
         console.error('Error removing from cart:', e);
+        // Restore button state on error
+        if (btnElement) {
+            btnElement.innerHTML = originalContent;
+            btnElement.disabled = false;
+        }
     }
 }
 
@@ -122,6 +169,7 @@ window.clearCart = async function () {
         if (res.ok) {
             cartState = {};
             renderCart();
+            syncProductButtons(); // <-- Added to refresh catalog buttons
         }
     } catch (e) {
         console.error('Error clearing cart:', e);
@@ -172,12 +220,12 @@ function renderCart() {
                     <div class="cart-item-name">${item.item_name}</div>
                     <div class="cart-item-price">${formatPrice(item.price, item.currency)}</div>
                     <div class="cart-item-controls">
-                        <button class="qty-btn" onclick="updateCartQuantity('${item.item_code}', ${quantity - 1})" ${quantity <= 1 ? 'disabled' : ''}>−</button>
+                        <button class="qty-btn" onclick="updateCartQuantity('${item.item_code}', ${quantity - 1}, this)" ${quantity <= 1 ? 'disabled' : ''}>−</button>
                         <span class="qty-display">${quantity}</span>
-                        <button class="qty-btn" onclick="updateCartQuantity('${item.item_code}', ${quantity + 1})">+</button>
+                        <button class="qty-btn" onclick="updateCartQuantity('${item.item_code}', ${quantity + 1}, this)">+</button>
                     </div>
                 </div>
-                <button class="cart-item-remove" onclick="removeFromCart('${item.item_code}')">×</button>
+                <button class="cart-item-remove" onclick="removeFromCart('${item.item_code}', this)">×</button>
                 <div class="cart-item-total">${formatPrice(lineTotal, item.currency)}</div>
             </div>
         `;
@@ -298,6 +346,51 @@ function formatPrice(price, currency = 'UZS') {
         maximumFractionDigits: 2
     }).format(price);
 }
+
+// -------------------------------------
+// UI Sync Logic: Product Buttons in Grids
+// -------------------------------------
+window.syncProductButtons = function () {
+    // Find all action containers in the document
+    const containers = document.querySelectorAll('.product-card-actions');
+
+    containers.forEach(container => {
+        const itemCode = container.dataset.itemCode;
+        if (!itemCode) return;
+
+        const cartItem = cartState[itemCode];
+
+        if (cartItem) {
+            // Item is in cart, show quantity controls
+            container.innerHTML = `
+                <div class="grid-qty-controls">
+                    <button class="grid-qty-btn" onclick="event.stopPropagation(); window.decrementInGrid('${itemCode}', this)">−</button>
+                    <span class="grid-qty-display">${cartItem.quantity}</span>
+                    <button class="grid-qty-btn" onclick="event.stopPropagation(); window.incrementInGrid('${itemCode}', this)">+</button>
+                </div>
+            `;
+        } else {
+            // Item NOT in cart, show Add button
+            container.innerHTML = `
+                <button class="add-btn" onclick="event.stopPropagation(); window.addToCartById('${itemCode}', 1, this)">
+                    Add to Cart
+                </button>
+            `;
+        }
+    });
+};
+
+window.decrementInGrid = function (itemCode, btnElement) {
+    const current = cartState[itemCode]?.quantity || 0;
+    if (current > 0) {
+        updateCartQuantity(itemCode, current - 1, btnElement);
+    }
+};
+
+window.incrementInGrid = function (itemCode, btnElement) {
+    const current = cartState[itemCode]?.quantity || 0;
+    updateCartQuantity(itemCode, current + 1, btnElement);
+};
 
 // Expose for other modules
 window.getCartItemCount = () => Object.values(cartState).reduce((sum, i) => sum + i.quantity, 0);

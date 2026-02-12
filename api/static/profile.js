@@ -51,7 +51,6 @@ window.showDeliveries = function () {
         deliveriesView.classList.add('active');
     }
 
-    // Load deliveries (reuse existing logic from app.js)
     if (window.loadDeliveries) {
         window.loadDeliveries('today');
     }

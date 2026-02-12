@@ -61,6 +61,12 @@ function spinnerHtml() {
 // -------------------------------------
 async function loadDeliveries(tab) {
     const container = document.getElementById(tab);
+    if (!container) return; // Safety check
+
+    // Centralized visibility logic: only show controls for history (All) tab
+    const controls = document.getElementById("deliveriesControls");
+    if (controls) controls.style.display = tab === "history" ? "block" : "none";
+
     container.innerHTML = spinnerHtml();
 
     let url = `/api/${tab}`;
@@ -253,9 +259,6 @@ document.querySelectorAll("#tabs a").forEach(tab => {
         document.getElementById("history").style.display = "none";
         const marketDiv = document.getElementById("market");
         if (marketDiv) marketDiv.style.display = "none";
-        // Also hide deliveries controls if in market? 
-        const controls = document.getElementById("deliveriesControls");
-        if (controls) controls.style.display = target === "market" ? "none" : "block";
 
         if (target === "today") {
             document.getElementById("today").style.display = "block";

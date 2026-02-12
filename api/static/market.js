@@ -56,6 +56,9 @@ function renderItems(items) {
     items.forEach(item => {
         const card = document.createElement("div");
         card.className = "product-card";
+        card.onclick = () => {
+            if (window.viewProduct) window.viewProduct(item.item_code);
+        };
 
         // Image (Placeholder if null/empty)
         const placeholder = "https://placehold.co/300x300?text=No+Image";
@@ -69,19 +72,23 @@ function renderItems(items) {
             <div class="product-image-container">
                 <img src="${imgUrl}" class="product-image" alt="${item.item_name}" loading="lazy" 
                      onerror="this.onerror=null; this.src='${placeholder}'">
-                
-                <button class="add-btn" onclick="addToCartFromCatalog('${item.item_code}')">
-                    +
-                </button>
             </div>
             <div class="product-info">
                 <div class="product-title">${item.item_name}</div>
                 <div class="product-price">${formatPrice(item.price, item.currency)}</div>
+                <div class="product-card-actions" data-item-code="${item.item_code}">
+                   <!-- Populated by syncProductButtons -->
+                </div>
             </div>
         `;
 
         grid.appendChild(card);
     });
+
+    // Sync buttons with cart state after rendering
+    if (window.syncProductButtons) {
+        window.syncProductButtons();
+    }
 }
 
 // Global function to add to cart from the catalog grid

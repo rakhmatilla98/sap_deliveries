@@ -103,15 +103,22 @@ async function loadFeaturedProducts() {
                     <div class="product-image-container">
                         <img src="${imgUrl}" class="product-image" alt="${item.item_name}" loading="lazy"
                              onerror="this.onerror=null; this.src='${placeholder}'">
-                        <button class="add-btn" onclick="event.stopPropagation(); quickAddToCart('${item.item_code}')">+</button>
                     </div>
                     <div class="product-info">
                         <div class="product-title">${item.item_name}</div>
                         <div class="product-price">${formatPrice(item.price, item.currency)}</div>
+                        <div class="product-card-actions" data-item-code="${item.item_code}">
+                            <!-- Populated by syncProductButtons -->
+                        </div>
                     </div>
                 </div>
             `;
         }).join('');
+
+        // Sync buttons with cart state after rendering
+        if (window.syncProductButtons) {
+            window.syncProductButtons();
+        }
 
     } catch (e) {
         console.error('Error loading featured products:', e);

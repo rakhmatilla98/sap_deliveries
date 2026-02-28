@@ -44,18 +44,18 @@ def get_db():
 
 @app.get("/api/items", response_model=list[ItemOut])
 def get_items(
-    q: str | None = None,
-    limit: int = 20,
-    offset: int = 0,
-    db: Session = Depends(get_db)
+        q: str | None = None,
+        limit: int = 20,
+        offset: int = 0,
+        db: Session = Depends(get_db)
 ):
-    query = db.query(Item).options(joinedload(Item.images)).filter(Item.quantity > 0) # Only in stock?
-    
+    query = db.query(Item).options(joinedload(Item.images)).filter(Item.quantity > 0)  # Only in stock?
+
     if q:
         query = query.filter(Item.item_name.ilike(f"%{q}%"))
-        
+
     items = query.order_by(Item.updated_at.desc()).limit(limit).offset(offset).all()
-    
+
     # Populate image_url
     for item in items:
         if item.images:
@@ -65,31 +65,131 @@ def get_items(
             if not path.startswith("/"):
                 path = "/" + path
             item.image_url = path
-            
+
     return items
+
+
+import json
+import platformdirs
+from google import genai
+from google.genai import types
+from fastapi import UploadFile, File
+
+
+@app.post("/api/scan-order")
+async def scan_order(
+        file: UploadFile = File(...),
+        user: TelegramUser = Depends(get_current_user),
+        db: Session = Depends(get_db)
+):
+    print("--- SCAN ORDER ENDPOINT HIT ---")
+    print(f"User: {user.telegram_id}, File: {file.filename}, Content-Type: {file.content_type}")
+    
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        print("ERROR: GEMINI_API_KEY not configured.")
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured. Contact admin.")
+
+    print("Configuring Gemini Client...")
+    client = genai.Client(api_key=api_key)
+
+    try:
+        contents = await file.read()
+        print(f"File read successfully. Size: {len(contents)} bytes.")
+    except Exception as e:
+        print(f"ERROR reading file: {e}")
+        raise HTTPException(status_code=400, detail="Could not read file")
+
+    items = db.query(Item).filter(Item.quantity > 0).all()
+    # Create product list context
+    product_catalog = "\n".join([f"- {item.item_code}: {item.item_name}" for item in items])
+
+    prompt = f"""
+You are an expert OCR and order entry assistant.
+The user has uploaded an image of a handwritten or printed order.
+Here is the current catalog of available products (item_code: item_name):
+{product_catalog}
+
+Your task is to:
+1. Read the text from the image carefully.
+2. For each ordered item found in the image, perform a fuzzy match against the catalog to find the exact `item_code` and `item_name`.
+3. Extract the quantity requested. If no quantity is specified, assume 1.
+4. Return the result STRICTLY as a JSON object with a single key "items" containing a list of objects. Each object must have "item_code", "item_name", and "quantity".
+Example output:
+{{
+  "items": [
+    {{"item_code": "P001", "item_name": "Product A", "quantity": 2}},
+    {{"item_code": "P002", "item_name": "Product B", "quantity": 1}}
+  ]
+}}
+If no items can be matched, return {{"items": []}}.
+Do not include any markdown formatting (like ```json), just the raw JSON string.
+"""
+
+    try:
+        # Uploading file using GenAI file API for parsing
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[
+                prompt,
+                types.Part.from_bytes(data=contents, mime_type=file.content_type)
+            ]
+        )
+
+        response_text = response.text.strip()
+
+        # Clean up markdown if model still included it
+        if response_text.startswith("```json"):
+            response_text = response_text[7:]
+        if response_text.startswith("```"):
+            response_text = response_text[3:]
+        if response_text.endswith("```"):
+            response_text = response_text[:-3]
+
+        result_json = json.loads(response_text)
+
+        matched_items = []
+        for parsed_item in result_json.get("items", []):
+            db_item = db.query(Item).filter(Item.item_code == parsed_item["item_code"]).first()
+            if db_item:
+                matched_items.append({
+                    "item_code": db_item.item_code,
+                    "item_name": db_item.item_name,
+                    "quantity": parsed_item["quantity"],
+                    "price": db_item.price
+                })
+
+        return {"items": matched_items}
+
+    except json.JSONDecodeError:
+        print(f"Failed to parse Gemini output: {response_text}")
+        raise HTTPException(status_code=500, detail="Invalid format returned from AI model.")
+    except Exception as e:
+        print(f"Gemini API Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to process image with AI: {str(e)}")
 
 
 @app.post("/api/orders")
 def create_order(
-    payload: OrderIn,
-    user: TelegramUser = Depends(get_current_user),
-    db: Session = Depends(get_db)
+        payload: OrderIn,
+        user: TelegramUser = Depends(get_current_user),
+        db: Session = Depends(get_db)
 ):
     if not payload.items:
         raise HTTPException(status_code=400, detail="Cart is empty")
-        
+
     # Calculate Total
     total_amount = 0.0
     order_items = []
-    
+
     for cart_item in payload.items:
         db_item = db.query(Item).filter(Item.item_code == cart_item.item_code).first()
         if not db_item:
-            continue # Skip invalid items or raise error
-            
+            continue  # Skip invalid items or raise error
+
         line_total = db_item.price * cart_item.quantity
         total_amount += line_total
-        
+
         order_items.append(OrderItem(
             item_code=db_item.item_code,
             item_name=db_item.item_name,
@@ -97,10 +197,10 @@ def create_order(
             price=db_item.price,
             line_total=line_total
         ))
-        
+
     if not order_items:
         raise HTTPException(status_code=400, detail="No valid items in order")
-        
+
     # Create Order
     new_order = Order(
         telegram_id=user.telegram_id,
@@ -109,14 +209,14 @@ def create_order(
         doc_total=total_amount,
         items=order_items
     )
-    
+
     db.add(new_order)
     db.commit()
     db.refresh(new_order)
-    
+
     # Optional: Trigger sync immediately or let worker handle it
     # For now, let worker handle it via "new" status
-    
+
     return {"status": "ok", "order_id": new_order.id}
 
 
@@ -126,21 +226,21 @@ def create_order(
 
 @app.get("/api/cart", response_model=list)
 def get_cart(
-    user: TelegramUser = Depends(get_current_user),
-    db: Session = Depends(get_db)
+        user: TelegramUser = Depends(get_current_user),
+        db: Session = Depends(get_db)
 ):
     """Get user's cart with full item details"""
     from shared.models import Cart
     from shared.schemas import CartItemOut
-    
+
     cart_items = db.query(Cart).filter(Cart.telegram_id == user.telegram_id).all()
-    
+
     result = []
     for cart_item in cart_items:
         db_item = db.query(Item).filter(Item.item_code == cart_item.item_code).first()
         if not db_item:
             continue  # Skip if item no longer exists
-        
+
         # Get image URL
         image_url = None
         if db_item.images:
@@ -149,7 +249,7 @@ def get_cart(
             if not path.startswith("/"):
                 path = "/" + path
             image_url = path
-        
+
         result.append({
             "item_code": db_item.item_code,
             "item_name": db_item.item_name,
@@ -159,36 +259,36 @@ def get_cart(
             "image_url": image_url,
             "line_total": db_item.price * cart_item.quantity
         })
-    
+
     return result
 
 
 @app.post("/api/cart/add")
 def add_to_cart(
-    cart_in: dict,
-    user: TelegramUser = Depends(get_current_user),
-    db: Session = Depends(get_db)
+        cart_in: dict,
+        user: TelegramUser = Depends(get_current_user),
+        db: Session = Depends(get_db)
 ):
     """Add item to cart or increment quantity if exists"""
     from shared.models import Cart
-    
+
     item_code = cart_in.get("item_code")
     quantity = cart_in.get("quantity", 1)
-    
+
     if not item_code:
         raise HTTPException(status_code=400, detail="item_code required")
-    
+
     # Check if item exists
     db_item = db.query(Item).filter(Item.item_code == item_code).first()
     if not db_item:
         raise HTTPException(status_code=404, detail="Item not found")
-    
+
     # Check if already in cart
     cart_item = db.query(Cart).filter(
         Cart.telegram_id == user.telegram_id,
         Cart.item_code == item_code
     ).first()
-    
+
     if cart_item:
         # Increment quantity
         cart_item.quantity += quantity
@@ -200,77 +300,76 @@ def add_to_cart(
             quantity=quantity
         )
         db.add(cart_item)
-    
+
     db.commit()
     return {"status": "ok", "quantity": cart_item.quantity}
 
 
 @app.put("/api/cart/update/{item_code}")
 def update_cart_item(
-    item_code: str,
-    update_in: dict,
-    user: TelegramUser = Depends(get_current_user),
-    db: Session = Depends(get_db)
+        item_code: str,
+        update_in: dict,
+        user: TelegramUser = Depends(get_current_user),
+        db: Session = Depends(get_db)
 ):
     """Update cart item quantity"""
     from shared.models import Cart
-    
+
     quantity = update_in.get("quantity")
     if quantity is None:
         raise HTTPException(status_code=400, detail="quantity required")
-    
+
     cart_item = db.query(Cart).filter(
         Cart.telegram_id == user.telegram_id,
         Cart.item_code == item_code
     ).first()
-    
+
     if not cart_item:
         raise HTTPException(status_code=404, detail="Item not in cart")
-    
+
     if quantity <= 0:
         # Remove item
         db.delete(cart_item)
     else:
         cart_item.quantity = quantity
-    
+
     db.commit()
     return {"status": "ok"}
 
 
 @app.delete("/api/cart/remove/{item_code}")
 def remove_from_cart(
-    item_code: str,
-    user: TelegramUser = Depends(get_current_user),
-    db: Session = Depends(get_db)
+        item_code: str,
+        user: TelegramUser = Depends(get_current_user),
+        db: Session = Depends(get_db)
 ):
     """Remove item from cart"""
     from shared.models import Cart
-    
+
     cart_item = db.query(Cart).filter(
         Cart.telegram_id == user.telegram_id,
         Cart.item_code == item_code
     ).first()
-    
+
     if cart_item:
         db.delete(cart_item)
         db.commit()
-    
+
     return {"status": "ok"}
 
 
 @app.delete("/api/cart/clear")
 def clear_cart(
-    user: TelegramUser = Depends(get_current_user),
-    db: Session = Depends(get_db)
+        user: TelegramUser = Depends(get_current_user),
+        db: Session = Depends(get_db)
 ):
     """Clear all items from user's cart"""
     from shared.models import Cart
-    
+
     db.query(Cart).filter(Cart.telegram_id == user.telegram_id).delete()
     db.commit()
-    
-    return {"status": "ok"}
 
+    return {"status": "ok"}
 
 
 # -------------------------------------------------
@@ -313,12 +412,12 @@ def get_today(
 # -------------------------------------------------
 @app.get("/api/history", response_model=HistoryOut)
 def get_history(
-    user: TelegramUser = Depends(get_current_user),
-    db: Session = Depends(get_db),
+        user: TelegramUser = Depends(get_current_user),
+        db: Session = Depends(get_db),
 
-    year: int | None = Query(None, ge=2000, le=2100),
-    limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
+        year: int | None = Query(None, ge=2000, le=2100),
+        limit: int = Query(20, ge=1, le=100),
+        offset: int = Query(0, ge=0),
 ):
     query = db.query(Delivery).options(joinedload(Delivery.items)).filter(
         Delivery.card_code == user.card_code

@@ -1,4 +1,4 @@
-aiogram==3.2.0
+aiogram>=3.3.0
 fastapi==0.110.0
 uvicorn[standard]==0.22.0
 SQLAlchemy==2.0.19
@@ -8,3 +8,6 @@ pydantic>=2.5
 hdbcli
 requests
 pillow
+python-multipart
+google-genai
+platformdirs

@@ -363,6 +363,160 @@ function showDetails(id) {
 window.showDetails = showDetails;
 
 // -------------------------------------
+// Order Scanning (OCR)
+// -------------------------------------
+let scannedItems = [];
+
+async function handleScanUpload(event) {
+    console.log("handleScanUpload triggered!");
+    const file = event.target.files[0];
+    console.log("Selected file:", file);
+    if (!file) {
+        console.log("No file selected, returning.");
+        return;
+    }
+
+    const modalEl = document.getElementById('scanOrderModal');
+    let modal = bootstrap.Modal.getInstance(modalEl);
+    if (!modal) {
+        console.log("Initializing new modal instance.");
+        modal = new bootstrap.Modal(modalEl);
+    }
+
+    console.log("Showing modal with loading spinner...");
+    document.getElementById('scanLoading').style.display = 'block';
+    document.getElementById('scanError').style.display = 'none';
+    document.getElementById('scanResultsContainer').style.display = 'none';
+    document.getElementById('confirmScanBtn').style.display = 'none';
+
+    modal.show();
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+        const headers = { "X-Telegram-User-Id": telegramUserId };
+        console.log("Sending POST request to /api/scan-order...", file.name, file.size);
+        const res = await fetch("/api/scan-order", {
+            method: "POST",
+            headers: headers,
+            body: formData
+        });
+
+        console.log("Response status:", res.status, res.statusText);
+        if (!res.ok) {
+            throw new Error(`Failed to process image: ${res.statusText}`);
+        }
+
+        const data = await res.json();
+        console.log("JSON response received:", data);
+        if (data.error) {
+            throw new Error(data.error);
+        }
+
+        scannedItems = data.items || [];
+        renderScannedItems();
+    } catch (err) {
+        document.getElementById('scanLoading').style.display = 'none';
+        const errorEl = document.getElementById('scanError');
+        errorEl.textContent = err.message || "Error analyzing image. Please try again.";
+        errorEl.style.display = 'block';
+    } finally {
+        event.target.value = '';
+    }
+}
+
+function renderScannedItems() {
+    document.getElementById('scanLoading').style.display = 'none';
+
+    const tbody = document.getElementById('scanResultsBody');
+    tbody.innerHTML = '';
+
+    if (scannedItems.length === 0) {
+        document.getElementById('scanError').textContent = "No products found in the image.";
+        document.getElementById('scanError').style.display = 'block';
+        return;
+    }
+
+    scannedItems.forEach((item, index) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="ps-3 align-middle">
+                <div class="fw-bold" style="font-size: 0.9em;">${item.item_name}</div>
+                <div class="small text-muted" style="font-size: 0.7em;">${item.item_code}</div>
+            </td>
+            <td class="text-center align-middle">
+                <input type="number" class="form-control form-control-sm text-center mx-auto" 
+                       style="width: 50px; padding: 0.1rem;" value="${item.quantity || 1}" min="1"
+                       onchange="updateScannedItemQty(${index}, this.value)">
+            </td>
+            <td class="text-end pe-3 align-middle">
+                ${item.price ? item.price.toLocaleString() : '-'}
+            </td>
+            <td class="text-center align-middle px-1">
+                <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="removeScannedItem(${index})">×</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    document.getElementById('scanResultsContainer').style.display = 'block';
+    document.getElementById('confirmScanBtn').style.display = 'block';
+}
+
+function updateScannedItemQty(index, qty) {
+    if (scannedItems[index]) {
+        scannedItems[index].quantity = parseInt(qty, 10) || 1;
+    }
+}
+
+function removeScannedItem(index) {
+    scannedItems.splice(index, 1);
+    renderScannedItems();
+}
+
+async function confirmScannedItems() {
+    if (scannedItems.length === 0) return;
+
+    const btn = document.getElementById('confirmScanBtn');
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Adding...`;
+
+    try {
+        for (const item of scannedItems) {
+            await apiFetch("/api/cart/add", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    item_code: item.item_code,
+                    quantity: item.quantity
+                })
+            });
+        }
+
+        const modalEl = document.getElementById('scanOrderModal');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+
+        if (typeof loadCartFromServer === 'function') {
+            await loadCartFromServer();
+        }
+        if (typeof navigateToSection === 'function') navigateToSection('cartSection');
+    } catch (err) {
+        alert("Error adding items to cart: " + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+}
+
+window.handleScanUpload = handleScanUpload;
+window.updateScannedItemQty = updateScannedItemQty;
+window.removeScannedItem = removeScannedItem;
+window.confirmScannedItems = confirmScannedItems;
+
+// -------------------------------------
 // Initial load
 // -------------------------------------
 loadDeliveries("today");

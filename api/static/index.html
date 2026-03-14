@@ -7,7 +7,7 @@
     <title>Отгрузки</title>
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="/static/style.css?v=3.10">
+    <link rel="stylesheet" href="/static/style.css?v=3.14">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
     <style>
@@ -25,7 +25,7 @@
     <!-- Version Indicator -->
     <div
         style="position: fixed; top: 10px; right: 10px; background: rgba(112, 0, 255, 0.9); color: white; padding: 4px 8px; border-radius: 4px; font-size: 10px; z-index: 9999; font-weight: bold;">
-        v3.10
+        v3.14
     </div>
 
     <div class="container py-3">
@@ -133,6 +133,12 @@
                     <span class="chevron">›</span>
                 </div>
 
+                <div class="menu-item" onclick="showAiChat()">
+                    <span class="icon">🤖</span>
+                    <span class="text">AI Sales Assistant</span>
+                    <span class="chevron">›</span>
+                </div>
+
                 <div class="menu-item" onclick="showDeliveries()">
                     <span class="icon">🚚</span>
                     <span class="text">Deliveries (SAP)</span>
@@ -209,6 +215,32 @@
             <div class="scroll-area px-3">
                 <div id="today"></div>
                 <div id="history" style="display:none"></div>
+            </div>
+        </div>
+
+        <!-- ============================
+             AI CHAT SUB-VIEW (Hidden, shown when user clicks AI Chat)
+             ============================ -->
+        <div id="aiChatView" class="section" style="display: none; height: calc(100vh - 70px); flex-direction: column;">
+            <div style="padding: 15px; background: var(--card-bg); border-bottom: 1px solid var(--border-light); position: sticky; top: 0; z-index: 100;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <button onclick="hideAiChat()" style="background: none; border: none; font-size: 24px; cursor: pointer;">←</button>
+                    <h2 style="margin: 0; font-size: 20px;">AI Assistant</h2>
+                </div>
+            </div>
+
+            <!-- Chat Messages Container -->
+            <div id="aiChatMessages" style="flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; background: var(--gray-bg);">
+                <div class="chat-message bot">
+                    <div class="message-content">Hello! How can I help you find products today? Feel free to type or use voice.</div>
+                </div>
+            </div>
+
+            <!-- Chat Input Area -->
+            <div style="padding: 10px 15px; background: var(--card-bg); border-top: 1px solid var(--border-light); display: flex; align-items: center; gap: 10px; position: sticky; bottom: 0; z-index: 100;">
+                <input type="text" id="aiChatInput" class="form-control" placeholder="Type a message..." style="border-radius: 20px;">
+                <button id="aiRecordBtn" class="btn btn-primary" style="border-radius: 50%; width: 40px; height: 40px; display: flex; justify-content: center; align-items: center; padding: 0;">🎤</button>
+                <button id="aiSendBtn" class="btn btn-success" style="border-radius: 50%; width: 40px; height: 40px; display: none; justify-content: center; align-items: center; padding: 0;">➤</button>
             </div>
         </div>
 
@@ -320,11 +352,12 @@
     </nav>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="/static/app.js?v=3.10"></script>
-    <script src="/static/market.js?v=3.10"></script>
-    <script src="/static/main.js?v=3.10"></script>
-    <script src="/static/cart.js?v=3.10"></script>
-    <script src="/static/profile.js?v=3.10"></script>
+    <script src="/static/app.js?v=3.14"></script>
+    <script src="/static/market.js?v=3.14"></script>
+    <script src="/static/main.js?v=3.14"></script>
+    <script src="/static/cart.js?v=3.14"></script>
+    <script src="/static/profile.js?v=3.14"></script>
+    <script src="/static/ai_chat.js?v=3.14"></script>
 
 </body>
 

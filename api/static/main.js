@@ -25,8 +25,9 @@ window.navigateToSection = function (sectionId) {
     const navIndex = {
         'mainSection': 0,
         'catalogSection': 1,
-        'cartSection': 2,
-        'profileSection': 3
+        // Scan button is at index 2, so we adjust accordingly
+        'cartSection': 3,
+        'profileSection': 4
     };
     document.querySelectorAll('.bottom-nav .nav-item')[navIndex[sectionId]]?.classList.add('active');
 

@@ -71,9 +71,10 @@ def get_items(
 
 import json
 import platformdirs
+import platformdirs
 from google import genai
 from google.genai import types
-from fastapi import UploadFile, File
+from fastapi import UploadFile, File, Form
 
 
 @app.post("/api/scan-order")
@@ -167,6 +168,98 @@ Do not include any markdown formatting (like ```json), just the raw JSON string.
     except Exception as e:
         print(f"Gemini API Error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to process image with AI: {str(e)}")
+
+
+@app.post("/api/ai-chat")
+async def process_ai_chat(
+        text: str = Form(None),
+        voice: UploadFile = File(None),
+        user: TelegramUser = Depends(get_current_user),
+        db: Session = Depends(get_db)
+):
+    print("--- AI CHAT ENDPOINT HIT ---")
+    if not text and not voice:
+        raise HTTPException(status_code=400, detail="Need text or voice input")
+    
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY missing")
+
+    client = genai.Client(api_key=api_key)
+
+    items = db.query(Item).filter(Item.quantity > 0).all()
+    product_catalog = "\n".join([f"- {item.item_code}: {item.item_name} | Price: {item.price} {item.currency}" for item in items])
+
+    prompt = f"""
+You are an expert AI sales assistant for a hardware/product store.
+The user is talking to you and looking for products.
+Here is the current catalog of available products (item_code: item_name | Price):
+{product_catalog}
+
+Your task is to:
+1. Understand the user's request (which might be provided as text or audio).
+2. Find the best matching products from the catalog that fulfill their need.
+3. Come up with a friendly, helpful reply text. For example, if they ask for prices or cheapest options, respond accordingly.
+4. Return the result STRICTLY as a JSON object with two keys:
+   - "replyText": Your conversational reply as a string.
+   - "items": A list of matched "item_code" strings. (Empty list if no matches).
+
+Example output:
+{{
+  "replyText": "Here are some steel bolts I found for you:",
+  "items": ["P001", "P005"]
+}}
+Do not include any markdown formatting (like ```json), just the raw JSON string.
+"""
+
+    contents = [prompt]
+    if text:
+        contents.append(text)
+    if voice:
+        try:
+            voice_bytes = await voice.read()
+            contents.append(types.Part.from_bytes(data=voice_bytes, mime_type=voice.content_type))
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Could not read voice data: {str(e)}")
+
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=contents
+        )
+
+        response_text = response.text.strip()
+        if response_text.startswith("```json"):
+            response_text = response_text[7:]
+        if response_text.startswith("```"):
+            response_text = response_text[3:]
+        if response_text.endswith("```"):
+            response_text = response_text[:-3]
+
+        result_json = json.loads(response_text.strip())
+
+        reply_text = result_json.get("replyText", "Here is what I found:")
+        item_codes = result_json.get("items", [])
+
+        matched_items = []
+        for code in item_codes:
+            db_item = db.query(Item).filter(Item.item_code == code).first()
+            if db_item:
+                matched_items.append({
+                    "item_code": db_item.item_code,
+                    "item_name": db_item.item_name,
+                    "price": db_item.price,
+                    "currency": db_item.currency
+                })
+
+        return {"replyText": reply_text, "items": matched_items}
+
+    except json.JSONDecodeError as e:
+        print(f"Failed to parse Gemini output: {response_text}")
+        return {"replyText": "I'm sorry, I couldn't understand your request properly.", "items": []}
+    except Exception as e:
+        print(f"Gemini API Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to process chat: {str(e)}")
 
 
 @app.post("/api/orders")

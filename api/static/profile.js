@@ -68,6 +68,31 @@ window.hideDeliveries = function () {
     navigateToSection('profileSection');
 };
 
+// Show AI Chat - Navigate to AI Chat view
+window.showAiChat = function () {
+    // Hide all sections
+    document.querySelectorAll('.section').forEach(sec => sec.classList.remove('active'));
+
+    // Show AI Chat view
+    const aiChatView = document.getElementById('aiChatView');
+    if (aiChatView) {
+        aiChatView.style.display = 'flex';
+        aiChatView.classList.add('active');
+    }
+};
+
+// Hide AI Chat and return to profile
+window.hideAiChat = function () {
+    const aiChatView = document.getElementById('aiChatView');
+    if (aiChatView) {
+        aiChatView.style.display = 'none';
+        aiChatView.classList.remove('active');
+    }
+
+    // Return to profile section
+    navigateToSection('profileSection');
+};
+
 // Show Favorites
 window.showFavorites = function () {
     alert('Favorites - Coming soon!\nThis will show your saved/favorite products.');

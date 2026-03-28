@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 
 from bot.handlers.start import start_handler
 from bot.handlers.phone import phone_handler
+from bot.handlers.settings import settings_router
 
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -16,6 +17,7 @@ async def main():
 
     dp.message.register(start_handler, F.text == "/start")
     dp.message.register(phone_handler, F.contact)
+    dp.include_router(settings_router)
 
     print("🤖 Bot started (polling)")
     await dp.start_polling(bot)

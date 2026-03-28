@@ -31,6 +31,9 @@ window.navigateToSection = function (sectionId) {
     };
     document.querySelectorAll('.bottom-nav .nav-item')[navIndex[sectionId]]?.classList.add('active');
 
+    // Scroll cleanly to the top for the new section
+    window.scrollTo({ top: 0, behavior: 'auto' });
+
     // Expand telegram
     if (window.Telegram && Telegram.WebApp) {
         Telegram.WebApp.expand();

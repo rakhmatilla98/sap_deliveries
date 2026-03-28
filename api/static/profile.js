@@ -105,7 +105,62 @@ window.showAddresses = function () {
 
 // Show Settings
 window.showSettings = function () {
-    alert('Settings - Coming soon!\nConfigure app preferences and notifications.');
+    // Hide all sections
+    document.querySelectorAll('.section').forEach(sec => sec.classList.remove('active'));
+
+    // Show setting view
+    const settingsView = document.getElementById('settingsView');
+    if (settingsView) {
+        settingsView.style.display = 'block';
+        settingsView.classList.add('active');
+    }
+};
+
+window.hideSettings = function () {
+    const settingsView = document.getElementById('settingsView');
+    if (settingsView) {
+        settingsView.style.display = 'none';
+        settingsView.classList.remove('active');
+    }
+
+    // Return to profile section
+    if (typeof navigateToSection === 'function') navigateToSection('profileSection');
+};
+
+window.updateAndSyncLanguage = async function(lang) {
+    console.log("updateAndSyncLanguage called for lang:", lang);
+    if (window.setLanguage) {
+        window.setLanguage(lang);
+    }
+    
+    Telegram?.WebApp?.HapticFeedback?.impactOccurred("light");
+
+    try {
+        console.log("Sending POST to /api/user/settings with body:", { language: lang });
+        const res = await window.apiFetch("/api/user/settings", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ language: lang })
+        });
+        
+        const data = await res.json();
+        console.log("Response received:", data);
+        const successMsg = window.t ? window.t('lang_saved_success') : 'Success: Language saved as ';
+        alert(successMsg + data.language);
+
+    } catch(e) {
+        console.error("Language sync failed", e);
+        const errorMsg = window.t ? window.t('lang_saved_error') : 'Error syncing language: ';
+        alert(errorMsg + e.message);
+    }
+    
+    // Reload active data if needed to translate server-provided text,
+    // actually, most text is handled via the data-i18n bindings now
+    if (document.getElementById('today')?.style.display === 'block' && typeof loadDeliveries === 'function') {
+        loadDeliveries('today');
+    }
 };
 
 // Show Support

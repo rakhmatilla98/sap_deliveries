@@ -49,7 +49,7 @@ window.addToCartById = async function (itemCode, quantity = 1, btnElement = null
     try {
         const userId = window.telegramUserId || window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
         if (!userId) {
-            alert('Please open from Telegram');
+            alert(window.t ? window.t('open_from_telegram') : 'Please open from Telegram');
             return;
         }
 
@@ -69,7 +69,7 @@ window.addToCartById = async function (itemCode, quantity = 1, btnElement = null
         }
     } catch (e) {
         console.error('Error adding to cart:', e);
-        alert('Failed to add to cart');
+        alert(window.t ? window.t('add_to_cart_failed') : 'Failed to add to cart');
         // Restore button state on error
         if (btnElement) {
             btnElement.innerHTML = originalContent;
@@ -155,7 +155,8 @@ async function removeFromCart(itemCode, btnElement = null) {
 
 // Clear cart
 window.clearCart = async function () {
-    if (!confirm('Clear all items from cart?')) return;
+    const msg = window.t ? window.t('clear_cart_confirm') : 'Clear all items from cart?';
+    if (!confirm(msg)) return;
 
     try {
         const userId = window.telegramUserId || window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
@@ -242,18 +243,18 @@ function renderCart() {
         </div>
         <div class="cart-summary">
             <div class="summary-row">
-                <span>Subtotal:</span>
+                <span>${window.t ? window.t('subtotal') : 'Subtotal'}:</span>
                 <span>${formatPrice(subtotal, currency)}</span>
             </div>
             <div class="summary-row">
-                <span>Delivery:</span>
-                <span>Free</span>
+                <span>${window.t ? window.t('delivery') : 'Delivery'}:</span>
+                <span>${window.t ? window.t('free_delivery') : 'Free'}</span>
             </div>
             <div class="summary-row total">
-                <span>Total:</span>
+                <span>${window.t ? window.t('total_label') : 'Total'}:</span>
                 <span>${formatPrice(total, currency)}</span>
             </div>
-            <button class="checkout-btn" onclick="handleCheckout()">Proceed to Checkout</button>
+            <button class="checkout-btn" onclick="handleCheckout()">${window.t ? window.t('proceed_checkout') : 'Proceed to Checkout'}</button>
         </div>
     `;
 }
@@ -262,13 +263,13 @@ function renderCart() {
 window.handleCheckout = async function () {
     const items = Object.values(cartState);
     if (items.length === 0) {
-        alert('Your cart is empty');
+        alert(window.t ? window.t('cart_empty') : 'Your cart is empty');
         return;
     }
 
     const userId = window.telegramUserId || window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
     if (!userId) {
-        alert('Please open from Telegram');
+        alert(window.t ? window.t('open_from_telegram') : 'Please open from Telegram');
         return;
     }
 
@@ -313,7 +314,8 @@ window.handleCheckout = async function () {
         cartState = {};
         renderCart();
 
-        alert(`Order #${data.order_id} placed successfully!`);
+        const successText = window.t ? window.t('order_success') : 'Order placed successfully! #';
+        alert(`${successText}${data.order_id}`);
         navigateToSection('mainSection');
 
     } catch (e) {
@@ -373,7 +375,7 @@ window.syncProductButtons = function () {
             // Item NOT in cart, show Add button
             container.innerHTML = `
                 <button class="add-btn" onclick="event.stopPropagation(); window.addToCartById('${itemCode}', 1, this)">
-                    Add to Cart
+                    ${window.t ? window.t('add_to_cart') : 'Add to Cart'}
                 </button>
             `;
         }

@@ -71,6 +71,8 @@ class TelegramUser(Base):
     is_active = Column(Boolean, default=False)
     phone_verified = Column(Boolean, default=False)
 
+    language = Column(String, default="ru")
+
     last_sap_sync = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 

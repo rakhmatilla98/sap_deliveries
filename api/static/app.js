@@ -30,7 +30,7 @@ if (!telegramUserId) {
 // =====================================
 // Helper: API fetch with auth header
 // =====================================
-async function apiFetch(url, options = {}) {
+window.apiFetch = async function (url, options = {}) {
     const headers = options.headers || {};
     headers["X-Telegram-User-Id"] = telegramUserId;
     options.headers = headers;
@@ -44,6 +44,8 @@ async function apiFetch(url, options = {}) {
 
     return res;
 }
+// For local calls falling back inside app.js if any still use apiFetch without window
+const apiFetch = window.apiFetch;
 
 // 🔧 CHANGE 1: Spinner HTML helper
 function spinnerHtml() {
@@ -83,7 +85,7 @@ async function loadDeliveries(tab) {
     container.innerHTML = "";
 
     if (!deliveries || deliveries.length === 0) {
-        container.innerHTML = "<p class='text-muted text-center'>Нет доставок</p>";
+        container.innerHTML = `<p class='text-muted text-center'>${window.t ? window.t('no_deliveries') : 'Нет доставок'}</p>`;
         return;
     }
 
@@ -102,12 +104,12 @@ async function loadDeliveries(tab) {
                 <button id="approve-${d.id}"
                         class="btn btn-success btn-sm mt-2"
                         onclick="approveDelivery(${d.id})">
-                    Approve
+                    ${window.t ? window.t('approve_btn') : 'Approve'}
                 </button>
             `;
         } else if (d.approved === true) {
             approveBlock = `
-                <span class="badge bg-success mt-2">Approved</span>
+                <span class="badge bg-success mt-2">${window.t ? window.t('approved_badge') : 'Approved'}</span>
             `;
         }
 
@@ -132,7 +134,7 @@ async function loadDeliveries(tab) {
                 ${approveBlock}
 
                 <button class="btn btn-outline-primary btn-sm mt-2 w-100" onclick="showDetails(${d.id})">
-                    Показать товары
+                    ${window.t ? window.t('show_items_btn') : 'Показать товары'}
                 </button>
             </div>
         `;
@@ -229,7 +231,7 @@ async function approveDelivery(id) {
         btn.disabled = true;
         btn.innerHTML = `
             <span class="spinner-border spinner-border-sm"></span>
-            Approving...
+            ${window.t ? window.t('loading') : 'Approving...'}
         `;
     }
 
@@ -312,7 +314,7 @@ function showDetails(id) {
         tbody.innerHTML = `
             <tr>
                 <td colspan="4" class="text-center text-muted p-3">
-                    Нет товаров
+                    ${window.t ? window.t('no_deliveries') : 'Нет товаров'}
                 </td>
             </tr>
         `;
@@ -346,7 +348,7 @@ function showDetails(id) {
         const trTotal = document.createElement("tr");
         trTotal.className = "table-light fw-bold";
         trTotal.innerHTML = `
-            <td colspan="3" class="text-end py-2">Итого:</td>
+            <td colspan="3" class="text-end py-2">${window.t ? window.t('total_sum_label') : 'Итого:'}</td>
             <td class="text-end pe-3 py-2">${totalSum.toLocaleString()}</td>
         `;
         tbody.appendChild(trTotal);
@@ -519,4 +521,23 @@ window.confirmScannedItems = confirmScannedItems;
 // -------------------------------------
 // Initial load
 // -------------------------------------
-loadDeliveries("today");
+async function init() {
+    try {
+        const res = await apiFetch("/api/user/settings");
+        if (res.ok) {
+            const data = await res.json();
+            if (data.language && window.setLanguage) {
+                window.setLanguage(data.language);
+            }
+        }
+    } catch (e) {
+        console.error("Settings load error:", e);
+    }
+    
+    // Fallback to ensuring translated strings are displayed
+    if (window.applyTranslations) window.applyTranslations();
+
+    loadDeliveries("today");
+}
+
+init();

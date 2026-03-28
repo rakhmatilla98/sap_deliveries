@@ -473,6 +473,43 @@ def health():
     return {"status": "ok"}
 
 
+# -------------------------------------------------
+# User Settings
+# -------------------------------------------------
+from pydantic import BaseModel
+
+class SettingsUpdate(BaseModel):
+    language: str
+
+@app.get("/api/user/settings")
+def get_user_settings(
+        user: TelegramUser = Depends(get_current_user)
+):
+    lang = user.language if hasattr(user, 'language') else "ru"
+    return {"language": lang}
+
+@app.post("/api/user/settings")
+def update_user_settings(
+        payload: SettingsUpdate,
+        user: TelegramUser = Depends(get_current_user)
+):
+    print(f"--- UPDATE SETTINGS HIT --- User: {user.telegram_id}, New Lang: {payload.language}")
+    
+    # Open isolated session to perform explicit UPDATE query (bypassing Depends caching collision)
+    from shared.db import SessionLocal
+    db = SessionLocal()
+    try:
+        db.query(TelegramUser).filter(TelegramUser.id == user.id).update(
+            {"language": payload.language}
+        )
+        db.commit()
+    finally:
+        db.close()
+    
+    print(f"--- Successfully saved lang: {payload.language} for User: {user.telegram_id}")
+    return {"status": "ok", "language": payload.language}
+
+
 # Routes
 @app.get("/")
 def index():

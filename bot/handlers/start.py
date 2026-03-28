@@ -1,8 +1,9 @@
 from aiogram import types
 
-from bot.keyboards import phone_keyboard, webapp_keyboard
+from bot.keyboards import get_phone_keyboard, get_webapp_keyboard
 from shared.db import SessionLocal
 from shared.models import TelegramUser
+from shared.translations import get_text
 
 
 async def start_handler(message: types.Message):
@@ -12,21 +13,24 @@ async def start_handler(message: types.Message):
             TelegramUser.telegram_id == message.from_user.id
         ).first()
 
+        lang = user.language if hasattr(user, 'language') else "ru"
         # ------------------------------
         # New user → create + ask phone
         # ------------------------------
-        if not user:
-            user = TelegramUser(
-                telegram_id=message.from_user.id,
-                is_active=False,
-                phone_verified=False
-            )
-            db.add(user)
-            db.commit()
+        if not user or not hasattr(user, 'phone_verified') or getattr(user, 'phone_verified') is None: # Quick fallback checks
+            if not user:
+                user = TelegramUser(
+                    telegram_id=message.from_user.id,
+                    is_active=False,
+                    phone_verified=False,
+                    language="ru"
+                )
+                db.add(user)
+                db.commit()
 
             await message.answer(
-                "Добро пожаловать 👋\nПожалуйста, поделитесь своим номером телефона, чтобы продолжить.",
-                reply_markup=phone_keyboard
+                get_text("welcome_phone", "ru"),
+                reply_markup=get_phone_keyboard("ru")
             )
             return
 
@@ -35,8 +39,8 @@ async def start_handler(message: types.Message):
         # ------------------------------
         if not user.phone_verified:
             await message.answer(
-                "Пожалуйста, поделитесь своим номером телефона, чтобы продолжить.",
-                reply_markup=phone_keyboard
+                get_text("request_phone", lang),
+                reply_markup=get_phone_keyboard(lang)
             )
             return
 
@@ -45,8 +49,7 @@ async def start_handler(message: types.Message):
         # ------------------------------
         if not user.is_active:
             await message.answer(
-                "⏳ Ваш аккаунт ожидает подтверждения.\n"
-                "Вы получите доступ вскоре после подтверждения."
+                get_text("waiting_activation", lang)
             )
             return
 
@@ -54,8 +57,8 @@ async def start_handler(message: types.Message):
         # Fully active → show WebApp
         # ------------------------------
         await message.answer(
-            "✅ Откройте панель отгрузок:",
-            reply_markup=webapp_keyboard
+            get_text("open_panel", lang),
+            reply_markup=get_webapp_keyboard(lang)
         )
 
     finally:

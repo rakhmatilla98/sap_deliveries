@@ -7,8 +7,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // Navigation between sections
 window.navigateToSection = function (sectionId) {
-    // Hide all sections
-    document.querySelectorAll('.section').forEach(sec => sec.classList.remove('active'));
+    // Hide all sections and clear inline display styles
+    document.querySelectorAll('.section').forEach(sec => {
+        sec.classList.remove('active');
+        sec.style.display = '';
+    });
+
+    // Ensure bottom navigation is visible
+    const bottomNav = document.querySelector('.bottom-nav');
+    if (bottomNav) bottomNav.style.display = '';
 
     // Show target section
     const targetSection = document.getElementById(sectionId);
@@ -225,10 +232,12 @@ window.viewProduct = async function (itemCode) {
         currentProduct = await res.json();
         renderProductDetails(currentProduct);
         
-        // Hide other sections but don't mess with bottom nav
+        // Hide other sections and bottom nav
         document.querySelectorAll('.section').forEach(sec => {
             if(sec.id !== 'productDetailsView') sec.style.display = 'none';
         });
+        const bottomNav = document.querySelector('.bottom-nav');
+        if (bottomNav) bottomNav.style.display = 'none';
         window.scrollTo({ top: 0 });
     } catch (e) {
         console.error(e);
@@ -238,9 +247,12 @@ window.viewProduct = async function (itemCode) {
             if (item) {
                 currentProduct = item;
                 renderProductDetails(item);
+                // Hide other sections and bottom nav
                 document.querySelectorAll('.section').forEach(sec => {
                     if(sec.id !== 'productDetailsView') sec.style.display = 'none';
                 });
+                const bottomNav = document.querySelector('.bottom-nav');
+                if (bottomNav) bottomNav.style.display = 'none';
                 window.scrollTo({ top: 0 });
             }
         }

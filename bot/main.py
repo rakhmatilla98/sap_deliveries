@@ -1,7 +1,14 @@
 import asyncio
 import os
+import sys
 from aiogram import Bot, Dispatcher, F
 from dotenv import load_dotenv
+
+# Ensure UTF-8 output when running as a Windows service
+if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if sys.stderr and hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
 from bot.handlers.start import start_handler
 from bot.handlers.phone import phone_handler

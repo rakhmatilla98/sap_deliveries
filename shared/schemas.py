@@ -43,13 +43,34 @@ class HistoryOut(BaseModel):
 # Marketplace Schemas
 # -------------------------------------------------
 
+class ItemCategoryOut(BaseModel):
+    id: int
+    name: str
+    description: str | None = None
+    sort_order: int
+    image_url: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class ItemCategoryIn(BaseModel):
+    name: str
+    description: str | None = None
+    sort_order: int = 0
+    image_url: str | None = None
+
+
 class ItemOut(BaseModel):
     item_code: str
     item_name: str
+    description: str | None = None
     quantity: float
     price: float
     currency: str
     image_url: str | None = None
+    image_urls: list[str] = []
+    category: ItemCategoryOut | None = None
 
     class Config:
         from_attributes = True
@@ -85,4 +106,10 @@ class CartItemOut(BaseModel):
 
 class CartUpdateIn(BaseModel):
     quantity: int
+
+
+class ItemCategoryUpdate(BaseModel):
+    item_codes: list[str]
+    category_id: int | None = None
+
 

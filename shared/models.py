@@ -81,18 +81,35 @@ class TelegramUser(Base):
 # Marketplace Models
 # -------------------------------------------------
 
+class ItemCategory(Base):
+    __tablename__ = "item_categories"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False, unique=True, index=True)
+    description = Column(String, nullable=True)
+    sort_order = Column(Integer, default=0)  # for controlling display order
+    image_url = Column(String, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    items = relationship("Item", back_populates="category")
+
+
 class Item(Base):
     __tablename__ = "items"
 
     item_code = Column(String, primary_key=True, index=True)
     item_name = Column(String, index=True)
+    description = Column(String, nullable=True)
     quantity = Column(Float, default=0.0)
     price = Column(Float, default=0.0)
     currency = Column(String, default="UZS")
-    
+
+    category_id = Column(Integer, ForeignKey("item_categories.id"), nullable=True, index=True)
 
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
+    category = relationship("ItemCategory", back_populates="items")
     images = relationship("ItemImage", back_populates="item", cascade="all, delete-orphan")
 
 

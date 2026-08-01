@@ -5,13 +5,14 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi import Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from api.auth import get_current_user
 from shared.config import BASE_DIR, HOST, PORT, API_STATIC_DIR, DATA_DIR
 from shared.db import SessionLocal
-from shared.models import Delivery, TelegramUser, Item, Order, OrderItem
-from shared.schemas import DeliveryOut, HistoryOut, ItemOut, OrderIn
+from shared.models import Delivery, TelegramUser, Item, ItemCategory, Order, OrderItem
+from shared.schemas import DeliveryOut, HistoryOut, ItemOut, OrderIn, ItemCategoryOut, ItemCategoryIn, ItemCategoryUpdate
 
 app = FastAPI(title="Delivery API")
 STATIC_DIR = os.path.join(BASE_DIR, "api", "static")
@@ -45,28 +46,143 @@ def get_db():
 @app.get("/api/items", response_model=list[ItemOut])
 def get_items(
         q: str | None = None,
+        category_id: int | None = None,
         limit: int = 20,
         offset: int = 0,
         db: Session = Depends(get_db)
 ):
-    query = db.query(Item).options(joinedload(Item.images)).filter(Item.quantity > 0)  # Only in stock?
+    query = db.query(Item).options(joinedload(Item.images), joinedload(Item.category)).filter(Item.quantity > 0)
 
     if q:
-        query = query.filter(Item.item_name.ilike(f"%{q}%"))
+        query = query.filter(func.lower(Item.item_name).contains(q.lower()))
+
+    if category_id is not None:
+        query = query.filter(Item.category_id == category_id)
 
     items = query.order_by(Item.updated_at.desc()).limit(limit).offset(offset).all()
 
-    # Populate image_url
+    # Populate image_url and image_urls
     for item in items:
         if item.images:
-            # Pick primary or first
-            primary_img = next((img for img in item.images if img.is_primary), item.images[0])
+            # Sort all images: primary first, then by file_path alphabetically (seq order)
+            sorted_imgs = sorted(item.images, key=lambda img: (not img.is_primary, img.file_path))
+            # Primary or first for backwards-compatible single image_url
+            primary_img = sorted_imgs[0]
             path = primary_img.file_path.replace("\\", "/")
             if not path.startswith("/"):
                 path = "/" + path
             item.image_url = path
+            # All images list
+            all_paths = []
+            for img in sorted_imgs:
+                p = img.file_path.replace("\\", "/")
+                if not p.startswith("/"):
+                    p = "/" + p
+                all_paths.append(p)
+            item.image_urls = all_paths
 
     return items
+
+
+@app.get("/api/items/{item_code}", response_model=ItemOut)
+def get_item(
+        item_code: str,
+        db: Session = Depends(get_db)
+):
+    item = db.query(Item).options(joinedload(Item.images), joinedload(Item.category)).filter(Item.item_code == item_code).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    if item.images:
+        sorted_imgs = sorted(item.images, key=lambda img: (not img.is_primary, img.file_path))
+        primary_img = sorted_imgs[0]
+        path = primary_img.file_path.replace("\\", "/")
+        if not path.startswith("/"):
+            path = "/" + path
+        item.image_url = path
+        item.image_urls = ["/" + img.file_path.replace("\\", "/").lstrip("/") for img in sorted_imgs]
+    else:
+        item.image_urls = []
+    
+    return item
+
+
+# -------------------------------------------------
+# Item Category Endpoints
+# -------------------------------------------------
+
+@app.get("/api/categories", response_model=list[ItemCategoryOut])
+def get_categories(db: Session = Depends(get_db)):
+    """Return all item categories ordered by sort_order."""
+    return db.query(ItemCategory).order_by(ItemCategory.sort_order, ItemCategory.name).all()
+
+
+@app.post("/api/categories", response_model=ItemCategoryOut, status_code=201)
+def create_category(data: ItemCategoryIn, db: Session = Depends(get_db)):
+    """Create a new item category."""
+    existing = db.query(ItemCategory).filter(func.lower(ItemCategory.name) == data.name.lower()).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Category with this name already exists")
+    category = ItemCategory(**data.model_dump())
+    db.add(category)
+    db.commit()
+    db.refresh(category)
+    return category
+
+
+@app.patch("/api/categories/{category_id}", response_model=ItemCategoryOut)
+def update_category(category_id: int, data: ItemCategoryIn, db: Session = Depends(get_db)):
+    """Update an existing category."""
+    category = db.query(ItemCategory).filter(ItemCategory.id == category_id).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(category, field, value)
+    db.commit()
+    db.refresh(category)
+    return category
+
+
+@app.delete("/api/categories/{category_id}", status_code=204)
+def delete_category(category_id: int, db: Session = Depends(get_db)):
+    """Delete a category. Items in this category will have their category set to NULL."""
+    category = db.query(ItemCategory).filter(ItemCategory.id == category_id).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    db.delete(category)
+    db.commit()
+
+
+@app.put("/api/items/{item_code}/category")
+def update_item_category(item_code: str, category_id: int | None = None, db: Session = Depends(get_db)):
+    """Set or clear the category for a specific item."""
+    item = db.query(Item).filter(Item.item_code == item_code).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    if category_id is not None:
+        category = db.query(ItemCategory).filter(ItemCategory.id == category_id).first()
+        if not category:
+            raise HTTPException(status_code=404, detail="Category not found")
+    item.category_id = category_id
+    db.commit()
+    return {"status": "success", "item_code": item_code, "category_id": category_id}
+
+
+@app.post("/api/items/bulk-category")
+def bulk_update_item_category(data: ItemCategoryUpdate, db: Session = Depends(get_db)):
+    """Set the category for multiple items at once."""
+    if data.category_id is not None:
+        category = db.query(ItemCategory).filter(ItemCategory.id == data.category_id).first()
+        if not category:
+            raise HTTPException(status_code=404, detail="Category not found")
+    
+    db.query(Item).filter(Item.item_code.in_(data.item_codes)).update(
+        {Item.category_id: data.category_id},
+        synchronize_session=False
+    )
+    db.commit()
+    return {"status": "success", "count": len(data.item_codes)}
+
 
 
 import json
